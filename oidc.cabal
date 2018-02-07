@@ -16,6 +16,22 @@ library
   -- exposed-modules:
   -- other-modules:
   -- other-extensions:
-  build-depends:       base >=4.10 && <4.11
+  build-depends:  base >=4.10 && <4.11,
+                  text,
+                  bytestring,
+                  jose,
+                  http-types,
+                  http-api-data,
+                  wai,
+                  time,
+                  cryptonite,
+                  memory,
+                  errors,
+                  text-icu,
+                  postgresql-simple,
+                  resource-pool,
+                  exceptions,
+                  transformers
+
   hs-source-dirs:      src
   default-language:    Haskell2010
