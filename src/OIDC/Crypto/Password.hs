@@ -4,6 +4,7 @@ module OIDC.Crypto.Password
     ( Password(..)
     , CleartextPassword(..)
     , verifyPassword
+    , generatePbkdf2Sha256
     ) where
 
 import           Control.Error           (hush)
@@ -15,7 +16,6 @@ import           Data.Text               (Text)
 import qualified Data.Text.Encoding      as Text
 import           Data.Text.ICU.Normalize (NormalizationMode (NFKC), normalize)
 
-import           Crypto.Error            (CryptoFailable)
 import qualified Crypto.KDF.Argon2       as A2
 import qualified Crypto.KDF.BCrypt       as BC
 import qualified Crypto.KDF.PBKDF2       as PB
@@ -28,12 +28,12 @@ import qualified Data.ByteString.Lazy    as BL
 import           Web.HttpApiData         (FromHttpApiData)
 
 import           OIDC.Crypto.RNG         (RNG, randomBytes)
-
+{-
 argon2 = A2.hash (A2.Options 2 512 2 A2.Argon2i A2.Version13) ("x"::ByteString) ("somesalt"::ByteString) 32 :: CryptoFailable ByteString
 
 bcrypt = BC.bcrypt 12 ("somesaltsomesalt" :: ByteString) ("x"::ByteString) :: ByteString
 pb = PB.fastPBKDF2_SHA256 (PB.Parameters (2 ^ 17) 32) ("x"::ByteString) ("somesalt"::ByteString) :: ByteString
-
+-}
 newtype Password = Password ByteString
     deriving(Eq, Ord)
 instance Show Password where
@@ -44,6 +44,7 @@ newtype CleartextPassword = CleartextPassword Text
 instance Show CleartextPassword where
   show _ = "CleartextPassword"
 
+verifyPassword :: CleartextPassword -> Password -> Bool
 verifyPassword clr passwd@(Password bs) = fromMaybe False $ case split of
    (algo : params) -> case algo of
      "pbkdf2_sha256" ->
@@ -70,12 +71,17 @@ parsePbkdf2Sha256 [roundsBS, saltB64, hashB64] = do
 
 parsePbkdf2Sha256 _ = Nothing
 
+verifyPbkdf2Sha256 :: CleartextPassword
+                   -> (PB.Parameters, ByteString, ByteString)
+                   -> Maybe Bool
 verifyPbkdf2Sha256 clr (params, salt, hash) =
    Just $ PB.fastPBKDF2_SHA256 params salt (cleartextToBS clr) == hash
 
 
+verifyBcrypt :: CleartextPassword -> Password -> Bool
 verifyBcrypt clr (Password ps) = BC.validatePassword (cleartextToBS clr) ps
 
+cleartextToBS :: CleartextPassword -> ByteString
 cleartextToBS (CleartextPassword ps) = Text.encodeUtf8 (normalize NFKC ps)
 
 generatePbkdf2Sha256 :: RNG -> CleartextPassword -> IO Password

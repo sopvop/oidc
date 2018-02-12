@@ -13,7 +13,6 @@ module OIDC.Types
     , TokenResponse(..)
     , TokenRequestError(..)
     , PasswordGrantRequest(..)
-    , CleartextPassword
 
     ) where
 

@@ -13,25 +13,56 @@ extra-source-files:  ChangeLog.md
 cabal-version:       >=1.10
 
 library
-  -- exposed-modules:
+  exposed-modules:
+    OIDC.Crypto.Message
+    OIDC.Crypto.Password
+    OIDC.Crypto.RNG
+    OIDC.Server
+    OIDC.Server.Types
+    OIDC.Types
   -- other-modules:
   -- other-extensions:
-  build-depends:  base >=4.10 && <4.11,
-                  text,
-                  bytestring,
-                  jose,
-                  http-types,
-                  http-api-data,
-                  wai,
-                  time,
-                  cryptonite,
-                  memory,
-                  errors,
-                  text-icu,
-                  postgresql-simple,
-                  resource-pool,
-                  exceptions,
-                  transformers
+  build-depends: base >=4.10 && <4.11
+               , bytestring           ^>= 0.10.8
+               , cryptonite           ^>= 0.24
+               , errors               ^>= 2.2.2
+               , exceptions           ^>= 0.8.3
+               , http-api-data        ^>= 0.3.7
+               , http-media           ^>= 0.7.1
+               , http-types           ^>= 0.9.1
+               , jose                 ^>= 0.6.0
+               , katip                ^>= 0.5.2
+               , memory               ^>= 0.14.11
+               , postgresql-simple    ^>= 0.5.3
+               , resource-pool        ^>= 0.2.3
+               , serialise            ^>= 0.2.0
+               , streaming-bytestring ^>= 0.1.5
+               , text                 ^>= 1.2.2
+               , text-icu             ^>= 0.7.0
+               , time                 ^>= 1.8.0
+               , transformers         ^>= 0.5.2
+               , uuid                 ^>= 1.3.13
+               , wai                  ^>= 3.2.1
+
 
   hs-source-dirs:      src
   default-language:    Haskell2010
+  ghc-options: -Wall
+
+test-suite tests
+  type:              exitcode-stdio-1.0
+  hs-source-dirs:    tests
+  main-is: Main.hs
+  default-language:  Haskell2010
+  ghc-options:
+    -Wall -fno-warn-orphans -threaded -rtsopts "-with-rtsopts=-N"
+  other-modules:
+    Tests.OIDC.Crypto.Message
+  build-depends: base >= 4.10 && < 4.11
+               , oidc
+               , tasty
+               , tasty-hunit
+               , tasty-quickcheck
+               , QuickCheck
+               , cryptonite
+               , bytestring
