@@ -33,8 +33,7 @@ import           Network.Wai
 import           Web.FormUrlEncoded
     (Form, fromForm, lookupUnique, urlDecodeForm)
 
-import           OIDC.Crypto.Passwyord     (verifyPassword)
-import           OIDC.Server.Types         (UserStore (..))
+import           OIDC.Crypto.Password      (verifyPassword)
 import           OIDC.Server.Types
 import           OIDC.Types
 

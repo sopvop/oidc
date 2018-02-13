@@ -20,11 +20,13 @@ library
     OIDC.Server
     OIDC.Server.Types
     OIDC.Types
+    OIDC.Types.Email
   -- other-modules:
   -- other-extensions:
   build-depends: base >=4.10 && <4.11
                , bytestring           ^>= 0.10.8
                , cryptonite           ^>= 0.24
+               , email-validate       ^>= 2.3.2
                , errors               ^>= 2.2.2
                , exceptions           ^>= 0.8.3
                , http-api-data        ^>= 0.3.7
@@ -58,11 +60,13 @@ test-suite tests
     -Wall -fno-warn-orphans -threaded -rtsopts "-with-rtsopts=-N"
   other-modules:
     Tests.OIDC.Crypto.Message
+    Tests.OIDC.Types.Email
   build-depends: base >= 4.10 && < 4.11
                , oidc
+               , text
+               , cryptonite
+               , bytestring
                , tasty
                , tasty-hunit
                , tasty-quickcheck
                , QuickCheck
-               , cryptonite
-               , bytestring
