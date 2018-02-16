@@ -3,7 +3,8 @@
 {-# LANGUAGE MultiWayIf        #-}
 {-# LANGUAGE OverloadedStrings #-}
 module OIDC.Server
-    ( tokenEndpoint
+    ( runTokenEndpoint
+    , tokenEndpoint
     ) where
 
 import           Control.Applicative       (Alternative (empty))
@@ -13,14 +14,19 @@ import           Control.Exception         (Exception)
 import           Control.Monad             (unless)
 import           Control.Monad.Catch       (throwM)
 import           Control.Monad.IO.Class    (MonadIO, liftIO)
+import           Control.Monad.Reader      (ask)
 import           Control.Monad.Trans.Class (lift)
 import           Control.Monad.Trans.Maybe (MaybeT (..), runMaybeT)
+import qualified Crypto.JWT                as JWT
 import           Data.Bifunctor            (first)
 import qualified Data.ByteString.Char8     as BS
 import qualified Data.ByteString.Lazy      as BL
 import           Data.Maybe                (fromMaybe)
+import           Data.Semigroup            ((<>))
 import           Data.Text                 (Text)
-import           Data.Time                 (UTCTime)
+import           Data.Time                 (UTCTime, getCurrentTime)
+import           Katip
+    (Severity (..), logF, logMsg, ls, showLS, sl)
 import           Network.HTTP.Media        (MediaType, mapContent, (//))
 import           Network.HTTP.Types
     (Header, Status, badRequest400, hCacheControl, hContentType,
@@ -30,31 +36,36 @@ import           Network.Wai
     (Application, Request, RequestBodyLength (ChunkedBody, KnownLength),
     Response, ResponseReceived, rawQueryString, requestBody, requestBodyLength,
     requestHeaders, requestMethod, responseLBS)
-import           Web.FormUrlEncoded
-    (Form, fromForm, lookupUnique, urlDecodeForm)
-
+import           OIDC.Crypto.Jwt           (encodeAccessToken, newAccessToken)
+import           OIDC.Crypto.Message       (encryptMessage)
 import           OIDC.Crypto.Password      (verifyPassword)
 import           OIDC.Server.Types
 import           OIDC.Types
+import           Web.FormUrlEncoded
+    (Form, fromForm, lookupUnique, urlDecodeForm)
+
+runTokenEndpoint :: OidcEnv -> Application
+runTokenEndpoint env req response = do
+  r <- runServerM (tokenEndpoint req) env
+  response r
+
 
 --tokenEndpoint :: Application
-tokenEndpoint :: (MonadIO m, UserStore m)
-              => Request
-              -> (Response -> IO ResponseReceived)
-              -> m ResponseReceived
-tokenEndpoint req respond =
+tokenEndpoint :: Request -> ServerM Response
+tokenEndpoint req  =
   if requestMethod req /= methodPost
   then
-    liftIO $ respond (methodNotAllowed [methodPost])
-  else runEndpoint respond . runExceptT $ do
+    pure (methodNotAllowed [methodPost])
+  else runEndpoint . runExceptT $ do
     unless (requestIsFormUrlEncoded req)
            $  throwE badContent
     body <- ExceptT . liftIO $ readFormBody req
     runGrant $ do
       grantType <- hoistEither (parseGrantType body)
-      case grantType of
+      usr <- case grantType of
         PasswordGrant -> ExceptT $ passwordAuth body
         _ -> throwAnn TokenUnsupportedGrantType "Unsupported grant type"
+      t <- mkAccessTokenResponse usr
       pure $ responseLBS ok200 tokenHeaders mempty
   where
     badContent = HttpError unsupportedMediaType415
@@ -66,26 +77,21 @@ tokenHeaders =
    ,( hCacheControl, "no-store")
    ,( "Pragma", "no-cache")]
 
-runEndpoint :: MonadIO m
-            => (Response -> IO ResponseReceived)
-            -> m (Either (HttpError (Ann e)) Response)
-            -> m ResponseReceived
-runEndpoint respond act = do
+runEndpoint :: Monad m
+            => m (Either (HttpError (Ann e)) Response)
+            -> m Response
+runEndpoint act = do
   res <- act
   case res of
     Left e -> undefined -- TODO: error response
-    Right r -> liftIO (respond r)
-
-type Error = String
+    Right r -> pure r
 
 runGrant :: Functor m => ExceptT e m a -> ExceptT (HttpError e) m a
 runGrant (ExceptT act) = ExceptT $ first f <$> act
   where
    f = HttpError badRequest400
 
---passwordAuth :: Request -> IO (Either TokenRequestError TokenResponse)
-passwordAuth :: (Monad m, UserStore m)
-             => Form -> m (Either (Ann TokenRequestError) ())
+passwordAuth :: Form -> ServerM (Either (Ann TokenRequestError) UserAuth)
 passwordAuth body = runExceptT $ do
     r <- case fromForm body of
       Left _ -> throwAnn TokenInvalidRequest "Invalid parameters"
@@ -94,10 +100,32 @@ passwordAuth body = runExceptT $ do
             <$> lookupUserByUsername (pgrUsername r)
     unless (verifyPassword (pgrPassword r) (userPassword user))
          $ throwE notFound
-    pure ()
+    pure user
   where
     notFound = Ann TokenInvalidGrant
                "User and password combination not found"
+
+mkAccessTokenResponse :: UserAuth
+                      -> ExceptT (Ann TokenRequestError) ServerM AccessTokenResponse
+mkAccessTokenResponse usr = do
+  t <- do
+    t <- lift (generateAccessToken (userId usr))
+    either badGenerate (pure . encodeAccessToken) t
+  logF (sl "user_id" (userId usr)) mempty NoticeS "Granted new access token"
+  pure $ AccessTokenResponse t "bearer" Nothing Nothing Nothing
+  where
+   badGenerate e = do
+     logMsg mempty AlertS $
+         "Can't generate access token" <> showLS e
+     throwAnn TokenServerError "Internal error"
+
+generateAccessToken :: UserId -> ServerM (Either JWT.Error JWT.SignedJWT)
+generateAccessToken uid = do
+  OidcEnv{oidcRNG=rng, oidcKeys=keys} <- ask
+  liftIO $ do
+    t <- getCurrentTime
+    key <- storeAccessTokenSigningKey keys
+    liftIO $ newAccessToken key rng uid t
 
 
 methodNotAllowed :: [BS.ByteString] -> Response

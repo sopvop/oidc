@@ -1,28 +1,34 @@
 {-# LANGUAGE OverloadedStrings #-}
 module OIDC.Types
     ( UserAuth(..)
-    , UserId
-    , Username
+    , UserId(..)
+    , Username(..)
     , Password(..)
     , CleartextPassword(..)
     , EmailAddress
 
+    , AccessToken(..)
     , RememberToken
 
     , GrantType (..)
-    , TokenResponse(..)
+    , AccessTokenResponse(..)
     , TokenRequestError(..)
     , PasswordGrantRequest(..)
 
     ) where
 
+import           Crypto.JWT           (SignedJWT)
+import           Data.ByteString      (ByteString)
+import qualified Data.ByteString.Lazy as BL
 import           Data.Text            (Text)
 import           Data.Time            (UTCTime)
-
 import           Web.FormUrlEncoded   (FromForm (..))
 import qualified Web.FormUrlEncoded   as Form
 
 import           OIDC.Crypto.Password (CleartextPassword (..), Password (..))
+import           OIDC.Types.Email     (EmailAddress (..), EmailId (..))
+import           OIDC.Types.UserAuth
+    (UserAuth (..), UserId (..), Username (..))
 
 data GrantType
     = AuthorizationCodeGrant
@@ -40,8 +46,6 @@ data ResponseType
 
 type Scope = Text
 type RedirectUri = Text
-type Username = Text
-type AccessToken = Text
 type RefreshToken = Text
 type AuthorizationCode = Text
 type ClientId = Text
@@ -50,17 +54,12 @@ type Url = Text
 type State = Text
 type Seconds = Int
 type TokenType = Text
-type UserId = Text
-type EmailAddress = Text
 type RememberToken = Text
 
-data UserAuth = UserAuth
-    { userId        :: UserId
-    , userUsername  :: Username
-    , userEmail     :: EmailAddress
-    , userPassword  :: Password
-    , userLockedOut :: Maybe UTCTime
-    } deriving (Eq, Ord, Show)
+
+newtype AccessToken = AccessToken
+  { unAccessToken :: BL.ByteString
+  } deriving (Eq, Ord, Show)
 
 
 -- | Either @token@ or @code@ request to authorization endpoint.
@@ -99,7 +98,7 @@ instance FromForm PasswordGrantRequest where
     <*> Form.parseUnique "password" f
     <*> Form.parseMaybe "scope" f
 
-data TokenResponse = TokenRespose
+data AccessTokenResponse = AccessTokenResponse
     { respAccessToken  :: AccessToken
     , respTokenType    :: TokenType
     , respExpiresIn    :: Maybe Seconds
@@ -131,4 +130,6 @@ data TokenRequestError
     | TokenUnauthorizedClient
     | TokenUnsupportedGrantType
     | TokenInvalidScope
+    | TokenServerError
+    | TokenTemporarilyUnavailable
       deriving (Eq, Ord, Show)

@@ -14,6 +14,8 @@ cabal-version:       >=1.10
 
 library
   exposed-modules:
+    OIDC.Crypto.Jwk
+    OIDC.Crypto.Jwt
     OIDC.Crypto.Message
     OIDC.Crypto.Password
     OIDC.Crypto.RNG
@@ -21,10 +23,13 @@ library
     OIDC.Server.Types
     OIDC.Types
     OIDC.Types.Email
+    OIDC.Types.UserAuth
   -- other-modules:
   -- other-extensions:
   build-depends: base >=4.10 && <4.11
+               , aeson
                , bytestring           ^>= 0.10.8
+               , containers
                , cryptonite           ^>= 0.24
                , email-validate       ^>= 2.3.2
                , errors               ^>= 2.2.2
@@ -34,7 +39,10 @@ library
                , http-types           ^>= 0.9.1
                , jose                 ^>= 0.6.0
                , katip                ^>= 0.5.2
+               , lens
                , memory               ^>= 0.14.11
+               , mtl
+               , monad-time
                , postgresql-simple    ^>= 0.5.3
                , resource-pool        ^>= 0.2.3
                , serialise            ^>= 0.2.0
@@ -60,12 +68,20 @@ test-suite tests
     -Wall -fno-warn-orphans -threaded -rtsopts "-with-rtsopts=-N"
   other-modules:
     Tests.OIDC.Crypto.Message
+    Tests.OIDC.Crypto.Jwt
     Tests.OIDC.Types.Email
+    Tests.Utils
   build-depends: base >= 4.10 && < 4.11
+               , bytestring
+               , cryptonite
+               , errors
+               , jose
+               , lens
                , oidc
                , text
-               , cryptonite
-               , bytestring
+               , time
+               , uuid
+
                , tasty
                , tasty-hunit
                , tasty-quickcheck

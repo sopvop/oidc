@@ -2,10 +2,13 @@ module OIDC.Crypto.RNG
     ( RNG
     , newRNG
     , randomBytes
+    , runDRG
+    , withRNG
     ) where
 
 
-import           Crypto.Random   (ChaChaDRG, drgNew, randomBytesGenerate)
+import           Crypto.Random
+    (ChaChaDRG, MonadPseudoRandom, drgNew, randomBytesGenerate, withDRG)
 import           Data.ByteString (ByteString)
 import           Data.IORef      (IORef, atomicModifyIORef', newIORef)
 import           Data.Tuple      (swap)
@@ -24,3 +27,5 @@ withRNG (RNG g) f = atomicModifyIORef' g $ swap . f
 randomBytes :: Int -> RNG -> IO ByteString
 randomBytes n r = withRNG r (randomBytesGenerate n)
 
+runDRG :: RNG -> MonadPseudoRandom ChaChaDRG a -> IO a
+runDRG rng act = withRNG rng $ flip withDRG act

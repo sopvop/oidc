@@ -1,20 +1,32 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE OverloadedStrings          #-}
 module OIDC.Server.Types
     ( UserStore(..)
     , CreateUserError (..)
     , InternalBackendError (..)
-    , OidcServer (..)
+
+    , ServerM(..)
+    , runServerM
+    , lookupUserByUsername
+    , askAccessTokenSigningKey
 
     , OidcConfig(..)
     , OidcEnv(..)
     , initOidcEnv
+    , KeyStore(..)
     ) where
 
-import           Katip.Monadic     (KatipContext)
+import           Control.Exception      (Exception)
+import           Control.Monad.Catch    (MonadCatch, MonadThrow)
+import           Control.Monad.IO.Class (MonadIO, liftIO)
+import           Control.Monad.Reader   (MonadReader, ReaderT (..), asks, local)
+import           Crypto.JWT             (JWK)
+import           Data.Time              (UTCTime)
+import           Katip                  (Katip (..), LogEnv, Namespace)
+import           Katip.Monadic          (KatipContext (..), LogContexts)
 
-import           Control.Exception (Exception)
-import           Data.Time         (UTCTime)
-
-import           OIDC.Crypto.RNG   (RNG, newRNG)
+import           OIDC.Crypto.Jwk        (PublicKeySet (..))
+import           OIDC.Crypto.RNG        (RNG, newRNG)
 import           OIDC.Types
     (EmailAddress, Password, RememberToken, UserAuth, UserId, Username)
 
@@ -22,20 +34,56 @@ instance Exception InternalBackendError
 
 
 data OidcEnv = OidcEnv
-  { oidcConfig :: OidcConfig
-  , oidcRNG    :: RNG
+  { oidcConfig         :: !OidcConfig
+  , oidcStore          :: !UserStore
+  , oidcKeys           :: !KeyStore
+  , oidcKatipLogEnv    :: !LogEnv
+  , oidcKatipContext   :: !LogContexts
+  , oidcKatipNamespace :: !Namespace
+  , oidcRNG            :: !RNG
   }
 
 data OidcConfig = OidcConfig
   {
   } deriving (Eq, Show)
 
-class KatipContext m => OidcServer m where
-  askOidcEnv :: m OidcEnv
 
-initOidcEnv :: OidcConfig -> IO OidcEnv
-initOidcEnv conf = OidcEnv conf <$> newRNG
+initOidcEnv :: UserStore -> KeyStore -> OidcConfig -> LogEnv -> IO OidcEnv
+initOidcEnv store keys conf logEnv =
+   OidcEnv conf store keys logEnv mempty ns <$> newRNG
+  where
+    ns = "oidc"
 
+newtype ServerM a = ServerM
+  { unServerM :: ReaderT OidcEnv IO a
+  } deriving ( Functor, Monad, Applicative, MonadReader OidcEnv
+             , MonadIO, MonadThrow, MonadCatch )
+
+runServerM :: ServerM a -> OidcEnv -> IO a
+runServerM act = runReaderT (unServerM act)
+
+
+instance Katip ServerM where
+  getLogEnv = asks oidcKatipLogEnv
+  {-# INLINE getLogEnv #-}
+  localLogEnv f =
+      local $ \e@OidcEnv {oidcKatipLogEnv = env} ->
+          e { oidcKatipLogEnv = f env }
+  {-# INLINE localLogEnv #-}
+
+instance KatipContext ServerM where
+  getKatipContext = asks oidcKatipContext
+  {-# INLINE getKatipContext #-}
+  localKatipContext f =
+      local $ \e@OidcEnv {oidcKatipContext = ctx} ->
+          e { oidcKatipContext = f ctx }
+  {-# INLINE localKatipContext #-}
+  getKatipNamespace = asks oidcKatipNamespace
+  {-# INLINE getKatipNamespace #-}
+  localKatipNamespace f =
+      local $ \e@OidcEnv {oidcKatipNamespace = ctx} ->
+          e { oidcKatipNamespace = f ctx }
+  {-# INLINE localKatipNamespace #-}
 
 -- | Some kind of internal error happend which can't be fixed
 newtype InternalBackendError = InternalBackendError String
@@ -47,22 +95,40 @@ data CreateUserError = DuplicateUsername
 
 
 -- | A class implementing user storage
-class UserStore m where
-  -- | Lookup user in store by Id
-  lookupUserById :: UserId -> m (Maybe UserAuth)
-  -- | Lookup user in store by remember token used in web save by
+data UserStore = UserStore
+  { storeLookupUserById :: UserId -> IO (Maybe UserAuth)
+  -- ^ Lookup user in store by Id
+  , storeLookupUserByRememberToken :: UserId -> IO (Maybe UserAuth)
+
+  -- ^ Lookup user in store by remember token used in web save by
   -- rember token
-  lookupUserByRememberToken :: UserId -> m (Maybe UserAuth)
-  lookupUserByUsername :: Username -> m (Maybe UserAuth)
+  , storeLookupUserByUsername :: Username -> IO (Maybe UserAuth)
 
-  lockoutUser :: UserId -> UTCTime -> m ()
+  , storeLockoutUser :: UserId -> UTCTime -> IO ()
 
-  -- | Store hashed remember token
-  addRememberToken :: UserId -> RememberToken -> m ()
+  , storeAddRememberToken :: UserId -> RememberToken -> IO ()
+  -- ^ Store hashed remember token
 
-  createUser :: Username
-             -> EmailAddress
-             -> Password
-             -> m (Either CreateUserError UserAuth)
+  , storeCreateUser :: Username
+                    -> EmailAddress
+                    -> Password
+                    -> IO (Either CreateUserError UserAuth)
+  , storeSaveUser :: UserAuth -> IO ()
+  }
 
-  saveUser :: UserAuth -> m ()
+lookupUserByUsername :: Username -> ServerM (Maybe UserAuth)
+lookupUserByUsername nm = do
+  us <- asks oidcStore
+  liftIO $ storeLookupUserByUsername us nm
+
+
+data KeyStore = KeyStore
+  { storeAccessTokenSigningKey :: IO JWK
+  , storePublicKeys            :: IO PublicKeySet
+  }
+
+askAccessTokenSigningKey :: ServerM JWK
+askAccessTokenSigningKey = do
+  us <- asks oidcKeys
+  liftIO $ storeAccessTokenSigningKey us
+

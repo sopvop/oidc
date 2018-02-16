@@ -5,7 +5,7 @@ module OIDC.Crypto.Message
     , readOpaqueToken
 
     , SymKey(..)
-    , UrlEncrypted(..)
+    , UrlEncoded(..)
 
     , encryptExpiringPayload
     , encryptMessage
@@ -41,14 +41,14 @@ newtype OpaqueToken = OpaqueToken
 newtype SymKey = SymKey
     { unSymKey :: ByteString }
 
-newtype UrlEncrypted = UrlEncrypted
-    { unUrlEncrypted :: ByteString }
+newtype UrlEncoded = UrlEncoded
+    { unUrlEncoded :: ByteString }
 
-urlEncrypted :: ByteString -> UrlEncrypted
-urlEncrypted = UrlEncrypted . convertToBase Base64URLUnpadded
+urlEncoded :: ByteString -> UrlEncoded
+urlEncoded = UrlEncoded . convertToBase Base64URLUnpadded
 
-fromUrlEncrypted ::UrlEncrypted -> Maybe ByteString
-fromUrlEncrypted (UrlEncrypted bs) =
+fromUrlEncoded ::UrlEncoded -> Maybe ByteString
+fromUrlEncoded (UrlEncoded bs) =
    hush $ convertFromBase Base64URLUnpadded bs
 
 newOpaqueToken :: SymKey -> RNG -> UUID -> UTCTime -> IO OpaqueToken
@@ -67,7 +67,7 @@ encryptExpiringPayload :: Serialise a
                     -> ChaCha.Nonce
                     -> a
                     -> UTCTime
-                    -> IO UrlEncrypted
+                    -> IO UrlEncoded
 encryptExpiringPayload key nonce !msg !t =
     encryptMessage key nonce (msg, t0 :: Word64)
   where
@@ -75,7 +75,7 @@ encryptExpiringPayload key nonce !msg !t =
 
 decryptExpiringPayload :: Serialise a
                        => SymKey
-                       -> UrlEncrypted
+                       -> UrlEncoded
                        -> UTCTime
                        -> Maybe a
 decryptExpiringPayload key msg t = do
@@ -90,7 +90,7 @@ encryptMessage :: Serialise p
                => SymKey
                -> ChaCha.Nonce
                -> p
-               -> IO UrlEncrypted
+               -> IO UrlEncoded
 encryptMessage key nonce !msg = do
   initial <- throwCryptoErrorIO
     $ ChaCha.initialize (unSymKey key) nonce
@@ -101,17 +101,17 @@ encryptMessage key nonce !msg = do
        state . ChaCha.encrypt . BSL.toStrict . serialise $ msg
     authBS = convert $ ChaCha.finalize st :: ByteString
     nonceBS = convert nonce :: ByteString
-  pure . urlEncrypted
+  pure . urlEncoded
     $! BSL.toStrict
     $ serialise (nonceBS, authBS, bs)
 
 
 decryptMessage :: Serialise a
                => SymKey
-               -> UrlEncrypted
+               -> UrlEncoded
                -> Maybe a
 decryptMessage (SymKey key) base64 = do
-   msg <- fromUrlEncrypted base64
+   msg <- fromUrlEncoded base64
    (nonceBS, authBS, encrypted) <-
        hush $ deserialiseOrFail (BSL.fromStrict msg)
    nonce <- maybeCryptoError $ ChaCha.nonce12 (nonceBS :: ByteString)
