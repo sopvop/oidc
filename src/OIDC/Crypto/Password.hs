@@ -16,7 +16,6 @@ import           Data.Text               (Text)
 import qualified Data.Text.Encoding      as Text
 import           Data.Text.ICU.Normalize (NormalizationMode (NFKC), normalize)
 
-import qualified Crypto.KDF.Argon2       as A2
 import qualified Crypto.KDF.BCrypt       as BC
 import qualified Crypto.KDF.PBKDF2       as PB
 import           Data.ByteArray.Encoding
@@ -29,6 +28,7 @@ import           Web.HttpApiData         (FromHttpApiData)
 
 import           OIDC.Crypto.RNG         (RNG, randomBytes)
 {-
+import qualified Crypto.KDF.Argon2       as A2
 argon2 = A2.hash (A2.Options 2 512 2 A2.Argon2i A2.Version13) ("x"::ByteString) ("somesalt"::ByteString) 32 :: CryptoFailable ByteString
 
 bcrypt = BC.bcrypt 12 ("somesaltsomesalt" :: ByteString) ("x"::ByteString) :: ByteString

@@ -7,42 +7,48 @@ module OIDC.Server
     , tokenEndpoint
     ) where
 
-import           Control.Applicative       (Alternative (empty))
+import           Control.Applicative             (Alternative, empty, (<|>))
 import           Control.Error
-    (ExceptT (..), hoistEither, note, noteT, runExceptT, throwE)
-import           Control.Exception         (Exception)
-import           Control.Monad             (unless)
-import           Control.Monad.Catch       (throwM)
-import           Control.Monad.IO.Class    (MonadIO, liftIO)
-import           Control.Monad.Reader      (ask)
-import           Control.Monad.Trans.Class (lift)
-import           Control.Monad.Trans.Maybe (MaybeT (..), runMaybeT)
-import qualified Crypto.JWT                as JWT
-import           Data.Bifunctor            (first)
-import qualified Data.ByteString.Char8     as BS
-import qualified Data.ByteString.Lazy      as BL
-import           Data.Maybe                (fromMaybe)
-import           Data.Semigroup            ((<>))
-import           Data.Text                 (Text)
-import           Data.Time                 (UTCTime, getCurrentTime)
+    (ExceptT (..), hoistEither, hush, note, noteT, runExceptT, throwE)
+import           Control.Exception               (Exception)
+import           Control.Lens                    (both, to)
+import           Control.Monad                   (unless, (<=<))
+import           Control.Monad.Catch             (throwM)
+import           Control.Monad.IO.Class          (MonadIO, liftIO)
+import           Control.Monad.Reader            (ask)
+import           Control.Monad.Trans.Class       (lift)
+import           Control.Monad.Trans.Maybe       (MaybeT (..), runMaybeT)
+import qualified Crypto.JWT                      as JWT
+import qualified Data.Aeson                      as J
+import           Data.Bifunctor                  (first)
+import qualified Data.ByteString.Char8           as BS
+import qualified Data.ByteString.Lazy            as BL
+import           Data.Coerce                     (coerce)
+import           Data.Maybe                      (fromMaybe)
+import           Data.Semigroup                  ((<>))
+import           Data.Text                       (Text)
+import qualified Data.Text.Encoding              as Text
+import           Data.Time                       (UTCTime, getCurrentTime)
 import           Katip
     (Severity (..), logF, logMsg, ls, showLS, sl)
-import           Network.HTTP.Media        (MediaType, mapContent, (//))
+import           Network.HTTP.Media              (MediaType, mapContent, (//))
 import           Network.HTTP.Types
-    (Header, Status, badRequest400, hCacheControl, hContentType,
-    methodNotAllowed405, methodPost, ok200, requestEntityTooLarge413,
-    unsupportedMediaType415)
+    (Header, Status, badRequest400, hAuthorization, hCacheControl,
+    hContentType, methodNotAllowed405, methodPost, ok200,
+    requestEntityTooLarge413, unsupportedMediaType415)
 import           Network.Wai
     (Application, Request, RequestBodyLength (ChunkedBody, KnownLength),
     Response, ResponseReceived, rawQueryString, requestBody, requestBodyLength,
     requestHeaders, requestMethod, responseLBS)
-import           OIDC.Crypto.Jwt           (encodeAccessToken, newAccessToken)
-import           OIDC.Crypto.Message       (encryptMessage)
-import           OIDC.Crypto.Password      (verifyPassword)
+import           Network.Wai.Middleware.HttpAuth (extractBasicAuth)
+import           OIDC.Crypto.Jwt
+    (encodeAccessToken, newAccessToken)
+import           OIDC.Crypto.Message             (encryptMessage)
+import           OIDC.Crypto.Password            (verifyPassword)
 import           OIDC.Server.Types
 import           OIDC.Types
 import           Web.FormUrlEncoded
-    (Form, fromForm, lookupUnique, urlDecodeForm)
+    (Form, FromForm, fromForm, lookupMaybe, lookupUnique, urlDecodeForm)
 
 runTokenEndpoint :: OidcEnv -> Application
 runTokenEndpoint env req response = do
@@ -63,10 +69,13 @@ tokenEndpoint req  =
     runGrant $ do
       grantType <- hoistEither (parseGrantType body)
       usr <- case grantType of
-        PasswordGrant -> ExceptT $ passwordAuth body
+        PasswordGrant ->
+          authenticateClient req body
+          *> parseBody body
+          >>= passwordAuth
         _ -> throwAnn TokenUnsupportedGrantType "Unsupported grant type"
       t <- mkAccessTokenResponse usr
-      pure $ responseLBS ok200 tokenHeaders mempty
+      pure $ responseLBS ok200 tokenHeaders $ J.encode t
   where
     badContent = HttpError unsupportedMediaType415
                  (TokenInvalidRequest !: "Invalid content-type")
@@ -91,11 +100,17 @@ runGrant (ExceptT act) = ExceptT $ first f <$> act
   where
    f = HttpError badRequest400
 
-passwordAuth :: Form -> ServerM (Either (Ann TokenRequestError) UserAuth)
-passwordAuth body = runExceptT $ do
-    r <- case fromForm body of
-      Left _ -> throwAnn TokenInvalidRequest "Invalid parameters"
-      Right !r -> pure r
+
+parseBody :: (FromForm a, Monad m)
+          => Form -> ExceptT (Ann TokenRequestError) m a
+parseBody body = case fromForm body of
+   Left _ -> throwAnn TokenInvalidRequest "Invalid parameters"
+   Right !r -> pure r
+{-# INLINEABLE parseBody #-}
+
+passwordAuth :: PasswordGrantRequest
+             -> ExceptT (Ann TokenRequestError) ServerM UserAuth
+passwordAuth r = do
     user <- ExceptT $ note notFound
             <$> lookupUserByUsername (pgrUsername r)
     unless (verifyPassword (pgrPassword r) (userPassword user))
@@ -164,6 +179,67 @@ readFormBody req = runExceptT $ do
     badDecode = HttpError badRequest400
       $ TokenInvalidRequest
       !: "Error decoding x-www-form-urlencoded data from body"
+
+data ClientCreds = ClientCreds
+    { clientCredsId     :: ClientId
+    , clientCredsSecret :: Maybe CleartextPassword
+    }
+
+onNothing :: Applicative f => Maybe a -> f a -> f a
+onNothing act elseAct = maybe elseAct pure act
+
+onNothingM :: Monad m => m (Maybe b) -> m b -> m b
+onNothingM act elseAct = maybe elseAct pure =<< act
+
+readClientCreds :: Request -> Form -> Maybe ClientCreds
+readClientCreds req form = do
+    (cid, pass) <- basic <|> hush fromForm
+    pure $ ClientCreds (coerce cid) (coerce pass)
+  where
+    basic = do
+      (a,b) <- extractBasicAuth <=< lookup hAuthorization
+               $ requestHeaders req
+      let pass = if BS.null b
+                 then Nothing
+                 else Just (Text.decodeLatin1 b)
+      pure (Text.decodeLatin1 a, pass)
+    fromForm =
+        (,) <$> lookupUnique "client_id" form
+            <*> lookupMaybe "client_secret" form
+
+authenticateClient req form = do
+  ClientCreds cid _ <-
+    readClientCreds req form
+    `onNothing`
+    throwAnn TokenUnauthorizedClient "client_id is required"
+  client <-
+    lift (lookupClientById cid)
+    `onNothingM`
+    throwAnn TokenUnauthorizedClient "Unknown client"
+  pure client
+
+authenticateClientWithSecret :: Request
+                             -> Form
+                             -> ExceptT (Ann TokenRequestError) ServerM ClientAuth
+authenticateClientWithSecret req form = do
+  ClientCreds cid secret <-
+    readClientCreds req form
+    `onNothing`
+    throwAnn TokenUnauthorizedClient "client_id is required"
+  cleartext <- secret `onNothing`
+    throwAnn TokenUnauthorizedClient  "client_secret required"
+
+  client <-
+    lift (lookupClientById cid)
+    `onNothingM`
+    throwAnn TokenUnauthorizedClient "client_id and password mismatch"
+
+  pass <- clientSecret client `onNothing`
+    throwAnn TokenInvalidGrant "Registered client does not support this grant"
+
+  unless (verifyPassword  cleartext pass)
+    $     throwAnn TokenUnauthorizedClient  "client_id and password mismatch"
+  pure client
 
 requestContentType :: Request -> BS.ByteString
 requestContentType req =

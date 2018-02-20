@@ -9,6 +9,7 @@ module OIDC.Server.Types
     , runServerM
     , lookupUserByUsername
     , askAccessTokenSigningKey
+    , lookupClientById
 
     , OidcConfig(..)
     , OidcEnv(..)
@@ -28,7 +29,8 @@ import           Katip.Monadic          (KatipContext (..), LogContexts)
 import           OIDC.Crypto.Jwk        (PublicKeySet (..))
 import           OIDC.Crypto.RNG        (RNG, newRNG)
 import           OIDC.Types
-    (EmailAddress, Password, RememberToken, UserAuth, UserId, Username)
+    (ClientAuth, ClientId, EmailAddress, Password, RememberToken, UserAuth,
+    UserId, Username)
 
 instance Exception InternalBackendError
 
@@ -36,6 +38,7 @@ instance Exception InternalBackendError
 data OidcEnv = OidcEnv
   { oidcConfig         :: !OidcConfig
   , oidcStore          :: !UserStore
+  , oidcClients        :: !ClientStore
   , oidcKeys           :: !KeyStore
   , oidcKatipLogEnv    :: !LogEnv
   , oidcKatipContext   :: !LogContexts
@@ -48,9 +51,13 @@ data OidcConfig = OidcConfig
   } deriving (Eq, Show)
 
 
-initOidcEnv :: UserStore -> KeyStore -> OidcConfig -> LogEnv -> IO OidcEnv
-initOidcEnv store keys conf logEnv =
-   OidcEnv conf store keys logEnv mempty ns <$> newRNG
+initOidcEnv :: UserStore
+            -> ClientStore
+            -> KeyStore
+            -> OidcConfig
+            -> LogEnv -> IO OidcEnv
+initOidcEnv store cl keys conf logEnv =
+   OidcEnv conf store cl keys logEnv mempty ns <$> newRNG
   where
     ns = "oidc"
 
@@ -121,6 +128,15 @@ lookupUserByUsername nm = do
   us <- asks oidcStore
   liftIO $ storeLookupUserByUsername us nm
 
+
+data ClientStore = ClientStore
+  { storeLookupClientById :: ClientId -> IO (Maybe ClientAuth)
+  }
+
+lookupClientById :: ClientId -> ServerM (Maybe ClientAuth)
+lookupClientById cid = do
+  cs <- asks oidcClients
+  liftIO $ storeLookupClientById cs cid
 
 data KeyStore = KeyStore
   { storeAccessTokenSigningKey :: IO JWK

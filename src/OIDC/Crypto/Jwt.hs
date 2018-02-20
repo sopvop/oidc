@@ -8,6 +8,7 @@ module OIDC.Crypto.Jwt
     , toUserIdSub
     , fromUserIdSub
     , encodeAccessToken
+    , decodeAccessToken
     ) where
 
 import           Control.Error              (note)
@@ -21,10 +22,12 @@ import           Crypto.JOSE.JWS            (Alg (EdDSA), newJWSHeader)
 import           Crypto.JWT
     (ClaimsSet, Error, JWK, JWKStore, JWTError, JWTValidationSettings,
     NumericDate (..), SignedJWT, StringOrURI, algorithms, claimExp, claimIss,
-    claimSub, defaultJWTValidationSettings, emptyClaimsSet, encodeCompact,
-    issuerPredicate, signClaims, string, verifyClaims)
+    claimSub, decodeCompact, defaultJWTValidationSettings, emptyClaimsSet,
+    encodeCompact, issuerPredicate, signClaims, string, verifyClaims)
 import           Crypto.Random              (withDRG)
 import           Data.Bifunctor             (first)
+import qualified Data.ByteString.Lazy       as BL
+import           Data.Coerce                (coerce)
 import qualified Data.Set                   as Set
 import           Data.Text                  (Text)
 import qualified Data.Text                  as Text
@@ -32,7 +35,8 @@ import           Data.Time                  (UTCTime)
 import qualified Data.UUID                  as UUID
 
 import           OIDC.Crypto.RNG            (RNG, withRNG)
-import           OIDC.Types                 (AccessToken (..), UserId (..))
+import           OIDC.Types
+    (AccessToken (..), Base64Url (..), UserId (..))
 
 
 newToken :: JWK -> RNG -> ClaimsSet -> IO (Either Error SignedJWT)
@@ -97,4 +101,7 @@ verifyAccessToken key t jwt = do
                 & algorithms .~ Set.singleton EdDSA
 
 encodeAccessToken :: SignedJWT -> AccessToken
-encodeAccessToken = AccessToken . encodeCompact
+encodeAccessToken = coerce . BL.toStrict . encodeCompact
+
+decodeAccessToken :: AccessToken -> Either JWTError SignedJWT
+decodeAccessToken = decodeCompact . BL.fromStrict . coerce
