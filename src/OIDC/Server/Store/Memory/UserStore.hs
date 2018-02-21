@@ -1,0 +1,108 @@
+{-# LANGUAGE BangPatterns #-}
+module OIDC.Server.Store.Memory.UserStore
+  ( initMemoryUserStore
+  ) where
+
+import           Control.Monad       (when)
+import           Data.HashMap.Strict (HashMap)
+import qualified Data.HashMap.Strict as HashMap
+import           Data.IORef
+    (IORef, atomicModifyIORef', newIORef, readIORef)
+import           Data.Maybe          (fromMaybe)
+
+import           OIDC.Server.Types   (StoreUserError (..), UserStore (..))
+import           OIDC.Types
+    (EmailId (..), UserAuth (..), UserId (..), Username)
+
+data Store = Store
+  { userMap     :: HashMap UserId UserAuth
+  , usernameMap :: HashMap Username UserId
+  , emailMap    :: HashMap EmailId UserId
+  }
+
+newtype MemoryUserStore = MemoryUserStore
+  { unMemoryUserStore :: IORef Store
+  }
+
+msLookupById :: MemoryUserStore
+             -> UserId
+             -> IO (Maybe UserAuth)
+msLookupById ms uid = HashMap.lookup uid . userMap
+                      <$> readIORef (unMemoryUserStore ms)
+
+msLookupByUsername :: MemoryUserStore
+                   -> Username
+                   -> IO (Maybe UserAuth)
+msLookupByUsername ms uname =
+  go <$> readIORef (unMemoryUserStore ms)
+  where
+    go s = HashMap.lookup uname (usernameMap s)
+           >>= flip HashMap.lookup (userMap s)
+
+msLookupByEmail :: MemoryUserStore
+                -> EmailId
+                -> IO (Maybe UserAuth)
+msLookupByEmail ms email =
+  go <$> readIORef (unMemoryUserStore ms)
+  where
+    go s = HashMap.lookup email (emailMap s)
+           >>= flip HashMap.lookup (userMap s)
+
+addUserToStore :: UserAuth -> Store -> Store
+addUserToStore !usr !store =
+    Store { userMap = um
+          , usernameMap = unm
+          , emailMap = em }
+  where
+    uid = userId usr
+    um = HashMap.insert uid usr $ userMap store
+    unm = HashMap.insert (userUsername usr) uid
+          $ usernameMap store
+    em = HashMap.insert (userEmailId usr) uid
+         $ emailMap store
+
+dropUserFromStore :: UserId -> Store -> Store
+dropUserFromStore uid store = fromMaybe store $ do
+  usr <- HashMap.lookup uid (userMap store)
+  pure $ store { userMap = HashMap.delete uid (userMap store)
+               , usernameMap = HashMap.delete (userUsername usr)
+                               $ usernameMap store
+               , emailMap = HashMap.delete (userEmailId usr)
+                            $ emailMap store
+               }
+
+checkUser :: UserAuth -> Store -> Either StoreUserError ()
+checkUser user s = do
+    when usernameTaken $ Left DuplicateUsername
+    when emailTaken $ Left DuplicateEmail
+  where
+    usernameTaken = HashMap.member (userUsername user) (usernameMap s)
+    emailTaken = HashMap.member (userEmailId user) (emailMap s)
+
+
+msSaveUser :: MemoryUserStore
+           -> UserAuth
+           -> IO (Either StoreUserError ())
+msSaveUser ms user =
+  atomicModifyIORef' (unMemoryUserStore ms) $ \s0 ->
+     let s = dropUserFromStore (userId user) s0
+     in case checkUser user s of
+       Left e -> (s, Left e)
+       Right () -> (addUserToStore user s, Right ())
+
+
+initMemoryUserStore :: [UserAuth] -> IO UserStore
+initMemoryUserStore usrs = mkUserStore <$> newIORef store
+
+  where
+    s0 = Store mempty mempty mempty
+    store = foldr addUserToStore s0 usrs
+    mkUserStore !s =
+      let ms = MemoryUserStore s
+      in UserStore
+         { storeLookupUserById = msLookupById ms
+         , storeLookupUserByUsername = msLookupByUsername ms
+         , storeLookupUserByEmail = msLookupByEmail ms
+         , storeCreateUser = msSaveUser ms
+         , storeSaveUser = msSaveUser ms
+         }

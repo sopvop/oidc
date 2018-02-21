@@ -67,18 +67,25 @@ tokenEndpoint req  =
            $  throwE badContent
     body <- ExceptT . liftIO $ readFormBody req
     runGrant $ do
-      grantType <- hoistEither (parseGrantType body)
-      usr <- case grantType of
-        PasswordGrant ->
-          authenticateClient req body
-          *> parseBody body
-          >>= passwordAuth
-        _ -> throwAnn TokenUnsupportedGrantType "Unsupported grant type"
+      usr <- authorizeGrant req body
       t <- mkAccessTokenResponse usr
       pure $ responseLBS ok200 tokenHeaders $ J.encode t
   where
     badContent = HttpError unsupportedMediaType415
                  (TokenInvalidRequest !: "Invalid content-type")
+
+authorizeGrant :: Request
+               -> Form
+               -> ExceptT (Ann TokenRequestError) ServerM UserAuth
+authorizeGrant req body = do
+  grantType <- hoistEither (parseGrantType body)
+  case grantType of
+    PasswordGrant ->
+      authenticateClient req body
+      *> parseBody body
+      >>= passwordAuth
+    _ -> throwAnn TokenUnsupportedGrantType "Unsupported grant type"
+
 
 tokenHeaders :: [Header]
 tokenHeaders =
@@ -238,7 +245,7 @@ authenticateClientWithSecret req form = do
     throwAnn TokenInvalidGrant "Registered client does not support this grant"
 
   unless (verifyPassword  cleartext pass)
-    $     throwAnn TokenUnauthorizedClient  "client_id and password mismatch"
+    $ throwAnn TokenUnauthorizedClient  "client_id and password mismatch"
   pure client
 
 requestContentType :: Request -> BS.ByteString

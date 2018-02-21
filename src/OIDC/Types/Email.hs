@@ -1,5 +1,6 @@
-{-# LANGUAGE BangPatterns      #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE BangPatterns               #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE OverloadedStrings          #-}
 module OIDC.Types.Email
     ( EmailId(..)
     , EmailAddress(..)
@@ -12,6 +13,7 @@ import           Control.Error       (hush)
 import           Data.ByteString     (ByteString)
 import qualified Data.ByteString     as BS
 import           Data.Coerce         (coerce)
+import           Data.Hashable       (Hashable)
 import           Data.Semigroup      ((<>))
 import           Data.Text           (Text)
 import qualified Data.Text.Encoding  as Text
@@ -23,7 +25,8 @@ import qualified Text.Email.Validate as EV
 -- in local part stripped. Used as unique key for email addresses.
 newtype EmailId = EmailId
     { unEmailId :: Text
-    } deriving (Eq, Ord, Show)
+    } deriving ( Eq, Ord, Show
+               , Hashable )
 
 -- | Email address used for mail delivary by user.
 newtype EmailAddress = EmailAddress

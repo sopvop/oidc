@@ -8,7 +8,8 @@ module OIDC.Types
     , Username(..)
     , Password(..)
     , CleartextPassword(..)
-    , EmailAddress
+    , EmailId(..)
+    , EmailAddress (..)
 
     , ClientId(..)
     , ClientAuth(..)

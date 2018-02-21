@@ -2,33 +2,43 @@
 module OIDC.Types.UserAuth
   ( UserAuth(..)
   , UserId (..)
+  , newUserId
   , Username(..)
   ) where
 
 import           Data.Aeson           (FromJSON, ToJSON)
+import           Data.Coerce          (coerce)
+import           Data.Hashable        (Hashable)
 import           Data.Text            (Text)
 import           Data.Time            (UTCTime)
 import           Data.UUID            (UUID)
+import           Data.UUID.V4         as UUID
 import           Web.HttpApiData      (FromHttpApiData, ToHttpApiData)
 
 import           OIDC.Crypto.Password (Password (..))
-import           OIDC.Types.Email     (EmailAddress)
+import           OIDC.Types.Email     (EmailAddress, EmailId)
 
 
 newtype UserId = UserId { unUserId :: UUID }
-    deriving (Eq, Ord, Show
+    deriving ( Eq, Ord, Show
              , FromHttpApiData, ToHttpApiData
-             , ToJSON, FromJSON)
+             , ToJSON, FromJSON
+             , Hashable )
 
+newUserId :: IO UserId
+newUserId = coerce UUID.nextRandom
 
 newtype Username = Username { unUserName :: Text }
-    deriving (Eq, Ord, Show, FromHttpApiData, ToHttpApiData)
+    deriving ( Eq, Ord, Show
+             , FromHttpApiData, ToHttpApiData
+             , Hashable )
 
 data UserAuth = UserAuth
     { userId        :: UserId
     , userUsername  :: Username
-    , userEmail     :: EmailAddress
     , userPassword  :: Password
+    , userEmailId   :: EmailId
+    , userEmail     :: EmailAddress
     , userLockedOut :: Maybe UTCTime
     } deriving (Eq, Ord, Show)
 

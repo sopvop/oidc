@@ -2,8 +2,10 @@
 {-# LANGUAGE OverloadedStrings          #-}
 module OIDC.Server.Types
     ( UserStore(..)
-    , CreateUserError (..)
+    , StoreUserError (..)
     , InternalBackendError (..)
+
+    , ClientStore(..)
 
     , ServerM(..)
     , runServerM
@@ -22,15 +24,13 @@ import           Control.Monad.Catch    (MonadCatch, MonadThrow)
 import           Control.Monad.IO.Class (MonadIO, liftIO)
 import           Control.Monad.Reader   (MonadReader, ReaderT (..), asks, local)
 import           Crypto.JWT             (JWK)
-import           Data.Time              (UTCTime)
 import           Katip                  (Katip (..), LogEnv, Namespace)
 import           Katip.Monadic          (KatipContext (..), LogContexts)
 
 import           OIDC.Crypto.Jwk        (PublicKeySet (..))
 import           OIDC.Crypto.RNG        (RNG, newRNG)
 import           OIDC.Types
-    (ClientAuth, ClientId, EmailAddress, Password, RememberToken, UserAuth,
-    UserId, Username)
+    (ClientAuth, ClientId, EmailId, UserAuth, UserId, Username)
 
 instance Exception InternalBackendError
 
@@ -97,30 +97,27 @@ newtype InternalBackendError = InternalBackendError String
   deriving (Show)
 
 -- | Backend error while creating user
-data CreateUserError = DuplicateUsername
-                     | DuplicateEmail
-
+data StoreUserError = DuplicateUsername
+                    | DuplicateEmail
+  deriving(Eq,Ord,Show)
 
 -- | A class implementing user storage
 data UserStore = UserStore
-  { storeLookupUserById :: UserId -> IO (Maybe UserAuth)
+  { storeLookupUserById       :: UserId -> IO (Maybe UserAuth)
   -- ^ Lookup user in store by Id
-  , storeLookupUserByRememberToken :: UserId -> IO (Maybe UserAuth)
-
-  -- ^ Lookup user in store by remember token used in web save by
-  -- rember token
+--  , storeLookupUserByRememberToken :: UserId -> IO (Maybe UserAuth)
+--  -- ^ Lookup user in store by remember token used in web save by
+--  -- rember token
   , storeLookupUserByUsername :: Username -> IO (Maybe UserAuth)
+  , storeLookupUserByEmail    :: EmailId -> IO (Maybe UserAuth)
 
-  , storeLockoutUser :: UserId -> UTCTime -> IO ()
+--  , storeLockoutUser :: UserId -> UTCTime -> IO ()
 
-  , storeAddRememberToken :: UserId -> RememberToken -> IO ()
-  -- ^ Store hashed remember token
+--  , storeAddRememberToken :: UserId -> RememberToken -> IO ()
+--  -- ^ Store hashed remember token
 
-  , storeCreateUser :: Username
-                    -> EmailAddress
-                    -> Password
-                    -> IO (Either CreateUserError UserAuth)
-  , storeSaveUser :: UserAuth -> IO ()
+  , storeCreateUser           :: UserAuth -> IO (Either StoreUserError ())
+  , storeSaveUser             :: UserAuth -> IO (Either StoreUserError ())
   }
 
 lookupUserByUsername :: Username -> ServerM (Maybe UserAuth)
@@ -129,7 +126,7 @@ lookupUserByUsername nm = do
   liftIO $ storeLookupUserByUsername us nm
 
 
-data ClientStore = ClientStore
+newtype ClientStore = ClientStore
   { storeLookupClientById :: ClientId -> IO (Maybe ClientAuth)
   }
 
