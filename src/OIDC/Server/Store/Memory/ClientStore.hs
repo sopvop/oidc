@@ -17,7 +17,7 @@ mcsLookupClientById :: MemoryClientStore -> ClientId -> IO (Maybe ClientAuth)
 mcsLookupClientById s cid =
     HashMap.lookup cid <$> readIORef (unMemoryClientStore s)
 
-initMemoryClientStore :: [(ClientId, ClientAuth)] -> IO ClientStore
+initMemoryClientStore :: [ClientAuth] -> IO ClientStore
 initMemoryClientStore initial = do
     ref <- newIORef hm
     let ms = MemoryClientStore ref
@@ -25,4 +25,4 @@ initMemoryClientStore initial = do
       { storeLookupClientById = mcsLookupClientById ms
       }
   where
-    hm = HashMap.fromList initial
+    hm = HashMap.fromList $ map (\x -> (clientId x,x)) initial

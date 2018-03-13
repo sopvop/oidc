@@ -11,7 +11,7 @@ import           Crypto.JWT
     asPublicKey, genJWK)
 import           Data.Maybe      (mapMaybe)
 
-import           OIDC.Crypto.RNG (RNG, runDRG, withRNG)
+import           OIDC.Crypto.RNG (RNG, runDRG)
 
 generateKey :: RNG -> KeyMaterialGenParam -> IO JWK
 generateKey r p = runDRG r (genJWK p)

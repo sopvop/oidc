@@ -21,6 +21,7 @@ library
     OIDC.Crypto.RNG
     OIDC.Server
     OIDC.Server.Store.Memory.ClientStore
+    OIDC.Server.Store.Memory.KeyStore
     OIDC.Server.Store.Memory.UserStore
     OIDC.Server.Types
     OIDC.Types
@@ -75,6 +76,7 @@ test-suite tests
     Tests.OIDC.Crypto.Message
     Tests.OIDC.Crypto.Jwt
     Tests.OIDC.Server.Store.Memory.UserStore
+    Tests.OIDC.Server.Store.Memory.KeyStore
     Tests.OIDC.Types.Email
     Tests.Utils
   build-depends: base >= 4.10 && < 4.11

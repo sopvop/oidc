@@ -90,7 +90,7 @@ verifyToken key t validator jwt = runVerifyM t $
           & issuerPredicate .~ (== "oauth.example.com")
           & algorithms .~ Set.singleton EdDSA
 
-verifyAccessToken :: JWK -> UTCTime -> SignedJWT -> Either Text UserId
+verifyAccessToken :: JWKStore s => s -> UTCTime -> SignedJWT -> Either Text UserId
 verifyAccessToken key t jwt = do
   claims <- first (Text.pack . show ) $ verifyToken key t validator jwt
   note "Can't parse sub uuid" $ fromUserIdSub =<< (claims^.claimSub)
