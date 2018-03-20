@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 module OIDC.Crypto.Jwk
     ( generateKey
     , generateEd25519
@@ -5,10 +6,11 @@ module OIDC.Crypto.Jwk
     , toPublicKeySet
     ) where
 
-import           Control.Lens    (view)
+import           Control.Lens    (set, view)
 import           Crypto.JWT
-    (JWK, JWKSet (..), JWKStore, KeyMaterialGenParam (..), OKPCrv (Ed25519),
-    asPublicKey, genJWK)
+    (JWK, JWKSet (..), JWKStore, KeyMaterialGenParam (..), KeyUse (Sig),
+    OKPCrv (Ed25519), asPublicKey, genJWK, jwkUse)
+import           Data.Aeson      (ToJSON (..), object, pairs, (.=))
 import           Data.Maybe      (mapMaybe)
 
 import           OIDC.Crypto.RNG (RNG, runDRG)
@@ -21,7 +23,13 @@ generateEd25519 r = generateKey r (OKPGenParam Ed25519)
 
 newtype PublicKeySet = PublicKeySet [JWK]
 
+instance ToJSON PublicKeySet where
+  toJSON (PublicKeySet keys) =
+      object ["keys" .= keys ]
+  toEncoding (PublicKeySet keys) =
+      pairs $ "keys" .= keys
+
 toPublicKeySet :: JWKSet -> PublicKeySet
 toPublicKeySet (JWKSet keys) =
-    PublicKeySet $ mapMaybe (view asPublicKey) keys
+    PublicKeySet $ mapMaybe (fmap (set jwkUse (Just Sig)) . view asPublicKey) keys
 

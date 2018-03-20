@@ -10,8 +10,9 @@ module OIDC.Server.Types
     , ServerM(..)
     , runServerM
     , lookupUserByUsername
-    , askAccessTokenSigningKey
     , lookupClientById
+    , askAccessTokenSigningKey
+    , askPublicKeys
 
     , OidcConfig(..)
     , OidcEnv(..)
@@ -144,4 +145,10 @@ askAccessTokenSigningKey :: ServerM JWK
 askAccessTokenSigningKey = do
   us <- asks oidcKeys
   liftIO $ storeAccessTokenSigningKey us
+
+
+askPublicKeys :: ServerM PublicKeySet
+askPublicKeys = do
+  us <- asks oidcKeys
+  liftIO $ storePublicKeys us
 

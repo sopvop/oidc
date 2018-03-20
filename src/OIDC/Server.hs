@@ -5,6 +5,8 @@
 module OIDC.Server
     ( runTokenEndpoint
     , tokenEndpoint
+    , runKeysEndpoint
+    , keysEndpoint
     ) where
 
 import           Control.Applicative             (Alternative, empty, (<|>))
@@ -34,13 +36,14 @@ import           Katip
 import           Network.HTTP.Media              (MediaType, mapContent, (//))
 import           Network.HTTP.Types
     (Header, Status, badRequest400, hAuthorization, hCacheControl,
-    hContentType, methodNotAllowed405, methodPost, ok200,
+    hContentType, methodGet, methodNotAllowed405, methodPost, ok200,
     requestEntityTooLarge413, unsupportedMediaType415)
 import           Network.Wai
     (Application, Request, RequestBodyLength (ChunkedBody, KnownLength),
     Response, ResponseReceived, rawQueryString, requestBody, requestBodyLength,
     requestHeaders, requestMethod, responseLBS)
 import           Network.Wai.Middleware.HttpAuth (extractBasicAuth)
+import           OIDC.Crypto.Jwk                 (PublicKeySet (..))
 import           OIDC.Crypto.Jwt
     (encodeAccessToken, newAccessToken)
 import           OIDC.Crypto.Message             (encryptMessage)
@@ -49,6 +52,25 @@ import           OIDC.Server.Types
 import           OIDC.Types
 import           Web.FormUrlEncoded
     (Form, FromForm, fromForm, lookupMaybe, lookupUnique, urlDecodeForm)
+
+
+runKeysEndpoint :: OidcEnv -> Application
+runKeysEndpoint env req response = do
+  r <- runServerM (keysEndpoint req) env
+  response r
+
+keysEndpoint :: Request -> ServerM Response
+keysEndpoint req =
+  if requestMethod req /= methodGet
+  then
+    pure (methodNotAllowed [methodGet])
+  else do
+   pks <- askPublicKeys
+   pure $ responseLBS ok200 headers (J.encode pks)
+  where
+   -- TODO: http caching?
+   headers = [(hContentType, "application/jwk-set+json")]
+
 
 runTokenEndpoint :: OidcEnv -> Application
 runTokenEndpoint env req response = do
