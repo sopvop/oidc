@@ -93,13 +93,14 @@ tokenHeaders =
    ,( hCacheControl, "no-store")
    ,( "Pragma", "no-cache")]
 
-runEndpoint :: Monad m
+runEndpoint :: (J.ToJSON e, Monad m)
             => m (Either (HttpError (Ann e)) Response)
             -> m Response
 runEndpoint act = do
   res <- act
   case res of
-    Left e -> undefined -- TODO: error response
+    Left (HttpError code (Ann e msg) ) -> pure $ responseLBS code tokenHeaders
+          $ J.encode (ErrorResponse  e (Just msg) Nothing)
     Right r -> pure r
 
 runGrant :: Functor m => ExceptT e m a -> ExceptT (HttpError e) m a

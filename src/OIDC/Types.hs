@@ -23,7 +23,7 @@ module OIDC.Types
     , AccessTokenResponse(..)
     , TokenRequestError(..)
     , PasswordGrantRequest(..)
-
+    , ErrorResponse (..)
     ) where
 
 import           Crypto.JWT              (SignedJWT)
@@ -138,10 +138,10 @@ data AccessTokenResponse = AccessTokenResponse
     , respScope        :: !(Maybe Scope)
     } deriving (Eq, Show)
 
-data OIDCError = OIDCError
-    { oidcError            :: Text
-    , oidcErrorDescription :: Maybe Text
-    , oidcErrorUri         :: Maybe Url
+data ErrorResponse e = ErrorResponse
+    { erError            :: e
+    , erErrorDescription :: Maybe Text
+    , erErrorUri         :: Maybe Url
     } deriving (Eq, Show)
 
 data AuthRequestErrors
@@ -167,5 +167,12 @@ data TokenRequestError
 
 
 $(let opts n = defaultOptions
-       { fieldLabelModifier = camelTo2 '_' . drop n }
-  in deriveJSON (opts 4)  ''AccessTokenResponse)
+       { fieldLabelModifier = camelTo2 '_' . drop n
+       , omitNothingFields = True }
+      optsCon n = defaultOptions
+        { constructorTagModifier = camelTo2 '_' . drop n }
+  in concat <$> sequenceA
+      [ deriveJSON (opts 4) ''AccessTokenResponse
+      , deriveJSON (opts 2) ''ErrorResponse
+      , deriveJSON (optsCon 4) ''AuthRequestErrors
+      , deriveJSON (optsCon 5) ''TokenRequestError ])
