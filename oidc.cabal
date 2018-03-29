@@ -41,7 +41,7 @@ library
                , hashable             ^>= 1.2.6
                , http-api-data        ^>= 0.3.7
                , http-media           ^>= 0.7.1
-               , http-types           ^>= 0.9.1
+               , http-types           ^>= 0.12.1
                , jose                 ^>= 0.6.0
                , katip                ^>= 0.5.2
                , lens                 ^>= 4.15.4
