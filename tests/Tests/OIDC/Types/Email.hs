@@ -19,7 +19,7 @@ testTree = testGroup "Tests.OIDC.Types.Email"
 
 assertParses :: Text -> IO EmailAddress
 assertParses a = case parseEmailAddress a of
-  Nothing -> throwIO . HUnitFailure $ "Can't parse: " <> show a
+  Nothing -> assertFailure $ "Can't parse: " <> show a
   Just addr -> pure addr
 
 testStripping :: TestTree

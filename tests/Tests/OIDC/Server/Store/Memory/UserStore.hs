@@ -22,7 +22,7 @@ import           OIDC.Types.Email
     (parseEmailAddress, toEmailId)
 
 import           Tests.Utils
-    (assertLeftEqM', assertRightM', throwFailure)
+    (assertLeftEqM', assertRightM')
 
 testTree :: TestTree
 testTree = testGroup "Tests.OIDC.Server.Store.Memory.UserStore"
@@ -41,7 +41,7 @@ testLookup = testCase "Lookup" $ do
 
   muser1 <- storeLookupUserById store uid1
   stored1 <- case muser1 of
-             Nothing -> throwFailure "User1 not found"
+             Nothing -> assertFailure "User1 not found"
              Just u -> pure u
 
   user1 <- mkUser1
@@ -91,7 +91,7 @@ missingUid = UserId (UUID.fromWords 1 0 0 0)
 mkUsr :: (UserId, Text, ByteString, Text) -> IO UserAuth
 mkUsr (uid, nm, p, em) = do
     email <- case parseEmailAddress em of
-               Nothing -> throwFailure $
+               Nothing -> assertFailure $
                           "Can't parse email " <> show em
                Just r -> pure r
     pure $ UserAuth uid (Username nm) (Password p)

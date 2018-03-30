@@ -17,7 +17,7 @@ import           OIDC.Crypto.RNG  (newRNG)
 
 import           OIDC.Types       (UserId (..))
 
-import           Tests.Utils      (assertRight', assertRightM', throwFailure)
+import           Tests.Utils      (assertRight', assertRightM')
 
 testTree :: TestTree
 testTree = testGroup "Tests.OIDC.Crypto.Jwt"
@@ -31,7 +31,7 @@ testJwtEncodeDecode = testCase "Sign/Verify" $ do
 
   key <- generateEd25519 rng
   pub <- case view asPublicKey key of
-           Nothing -> throwFailure "Has public key"
+           Nothing -> assertFailure "Has public key"
            Just k -> pure k
 
   t0 <- getCurrentTime
@@ -47,6 +47,6 @@ testJwtEncodeDecode = testCase "Sign/Verify" $ do
 
   case verifyAccessToken pub (addUTCTime 100 t1) jwt of
     Left _ -> pure ()
-    Right _ -> throwFailure "expires"
+    Right _ -> assertFailure "expires"
 
   pure ()
