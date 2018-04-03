@@ -25,6 +25,7 @@ import           Control.Monad.Catch    (MonadCatch, MonadThrow)
 import           Control.Monad.IO.Class (MonadIO, liftIO)
 import           Control.Monad.Reader   (MonadReader, ReaderT (..), asks, local)
 import           Crypto.JWT             (JWK)
+import           Data.Time              (NominalDiffTime, addUTCTime)
 import           Katip                  (Katip (..), LogEnv, Namespace)
 import           Katip.Monadic          (KatipContext (..), LogContexts)
 
@@ -47,8 +48,8 @@ data OidcEnv = OidcEnv
   , oidcRNG            :: !RNG
   }
 
-data OidcConfig = OidcConfig
-  {
+newtype OidcConfig = OidcConfig
+  { confKeysExpiration :: NominalDiffTime
   } deriving (Eq, Show)
 
 

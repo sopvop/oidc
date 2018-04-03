@@ -30,7 +30,8 @@ import           Data.Maybe                      (fromMaybe)
 import           Data.Semigroup                  ((<>))
 import           Data.Text                       (Text)
 import qualified Data.Text.Encoding              as Text
-import           Data.Time                       (UTCTime, getCurrentTime)
+import           Data.Time
+    (UTCTime, addUTCTime, getCurrentTime)
 import           Katip
     (Severity (..), logF, logMsg, ls, showLS, sl)
 import           Network.HTTP.Media              (MediaType, mapContent, (//))
@@ -166,9 +167,9 @@ mkAccessTokenResponse usr = do
 
 generateAccessToken :: UserId -> ServerM (Either JWT.Error JWT.SignedJWT)
 generateAccessToken uid = do
-  OidcEnv{oidcRNG=rng, oidcKeys=keys} <- ask
+  OidcEnv{oidcRNG=rng, oidcKeys=keys, oidcConfig=conf} <- ask
   liftIO $ do
-    t <- getCurrentTime
+    t <- addUTCTime (confKeysExpiration conf) <$> getCurrentTime
     key <- storeAccessTokenSigningKey keys
     liftIO $ newAccessToken key rng uid t
 
