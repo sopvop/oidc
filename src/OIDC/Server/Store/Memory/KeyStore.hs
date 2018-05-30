@@ -29,8 +29,8 @@ activeKey expire ref = do
     else do
       k <- generateNewKey
       let
-        keyExpires = addUTCTime (expire / 2) t
-        nextUpdate = addUTCTime expire t
+        keyExpires = addUTCTime expire t
+        nextUpdate = addUTCTime (expire / 2) t
         keys = (keyExpires, currentKey s)
                : filter (\(e, _) -> e > t)
                  (oldKeys s)
