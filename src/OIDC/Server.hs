@@ -9,32 +9,30 @@ module OIDC.Server
     , keysEndpoint
     ) where
 
-import           Control.Applicative             (Alternative, empty, (<|>))
+import           Control.Applicative (Alternative, empty, (<|>))
 import           Control.Error
     (ExceptT (..), hoistEither, hush, note, noteT, runExceptT, throwE)
-import           Control.Exception               (Exception)
-import           Control.Lens                    (both, to)
-import           Control.Monad                   (unless, (<=<))
-import           Control.Monad.Catch             (throwM)
-import           Control.Monad.IO.Class          (MonadIO, liftIO)
-import           Control.Monad.Reader            (ask)
-import           Control.Monad.Trans.Class       (lift)
-import           Control.Monad.Trans.Maybe       (MaybeT (..), runMaybeT)
-import qualified Crypto.JWT                      as JWT
-import qualified Data.Aeson                      as J
-import           Data.Bifunctor                  (first)
-import qualified Data.ByteString.Char8           as BS
-import qualified Data.ByteString.Lazy            as BL
-import           Data.Coerce                     (coerce)
-import           Data.Maybe                      (fromMaybe)
-import           Data.Semigroup                  ((<>))
-import           Data.Text                       (Text)
-import qualified Data.Text.Encoding              as Text
-import           Data.Time
-    (UTCTime, addUTCTime, getCurrentTime)
-import           Katip
-    (Severity (..), logF, logMsg, ls, showLS, sl)
-import           Network.HTTP.Media              (MediaType, mapContent, (//))
+import           Control.Exception (Exception)
+import           Control.Lens (both, to)
+import           Control.Monad (unless, (<=<))
+import           Control.Monad.Catch (throwM)
+import           Control.Monad.IO.Class (MonadIO, liftIO)
+import           Control.Monad.Reader (ask)
+import           Control.Monad.Trans.Class (lift)
+import           Control.Monad.Trans.Maybe (MaybeT (..), runMaybeT)
+import qualified Crypto.JWT as JWT
+import qualified Data.Aeson as J
+import           Data.Bifunctor (first)
+import qualified Data.ByteString.Char8 as BS
+import qualified Data.ByteString.Lazy as BL
+import           Data.Coerce (coerce)
+import           Data.Maybe (fromMaybe)
+import           Data.Semigroup ((<>))
+import           Data.Text (Text)
+import qualified Data.Text.Encoding as Text
+import           Data.Time (UTCTime, addUTCTime, getCurrentTime)
+import           Katip (Severity (..), logF, logMsg, ls, showLS, sl)
+import           Network.HTTP.Media (MediaType, mapContent, (//))
 import           Network.HTTP.Types
     (Header, Status, badRequest400, hAuthorization, hCacheControl,
     hContentType, methodGet, methodNotAllowed405, methodPost, ok200,
@@ -44,12 +42,12 @@ import           Network.Wai
     Response, ResponseReceived, rawQueryString, requestBody, requestBodyLength,
     requestHeaders, requestMethod, responseLBS)
 import           Network.Wai.Middleware.HttpAuth (extractBasicAuth)
-import           OIDC.Crypto.Jwk                 (PublicKeySet (..))
-import           OIDC.Crypto.Jwt
-    (encodeAccessToken, newAccessToken)
-import           OIDC.Crypto.Message             (encryptMessage)
-import           OIDC.Crypto.Password            (verifyPassword)
+import           OIDC.Crypto.Jwk (PublicKeySet (..))
+import           OIDC.Crypto.Jwt (encodeAccessToken, newAccessToken)
+import           OIDC.Crypto.Message (encryptMessage)
+import           OIDC.Crypto.Password (verifyPassword)
 import           OIDC.Server.Types
+import           OIDC.Server.UserStore (lookupUserByUsername)
 import           OIDC.Types
 import           Web.FormUrlEncoded
     (Form, FromForm, fromForm, lookupMaybe, lookupUnique, urlDecodeForm)

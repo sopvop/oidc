@@ -1,31 +1,28 @@
 {-# LANGUAGE OverloadedStrings #-}
-module Tests.OIDC.Server.Store.Memory.UserStore
+module Tests.OIDC.Server.UserStore.Memory
     ( testTree
     ) where
 
-import           Control.Monad                      ((<=<))
-import           Data.ByteString                    (ByteString)
-import           Data.Maybe                         (isNothing)
-import           Data.Semigroup                     ((<>))
-import           Data.Text                          (Text)
-import qualified Data.UUID                          as UUID
+import           Control.Monad ((<=<))
+import           Data.ByteString (ByteString)
+import           Data.Maybe (isNothing)
+import           Data.Semigroup ((<>))
+import           Data.Text (Text)
+import qualified Data.UUID as UUID
 
 import           Test.Tasty
 import           Test.Tasty.HUnit
 
-import           OIDC.Server.Store.Memory.UserStore (initMemoryUserStore)
-import           OIDC.Server.Types
-    (StoreUserError (..), UserStore (..))
+import           OIDC.Server.UserStore (StoreUserError (..), UserStore (..))
+import           OIDC.Server.UserStore.Memory (initUserStore)
 import           OIDC.Types
     (EmailId (..), Password (..), UserAuth (..), UserId (..), Username (..))
-import           OIDC.Types.Email
-    (parseEmailAddress, toEmailId)
+import           OIDC.Types.Email (parseEmailAddress, toEmailId)
 
-import           Tests.Utils
-    (assertLeftEqM', assertRightM')
+import           Tests.Utils (assertLeftEqM', assertRightM')
 
 testTree :: TestTree
-testTree = testGroup "Tests.OIDC.Server.Store.Memory.UserStore"
+testTree = testGroup "Tests.OIDC.Server.UserStore.Memory"
   [ testLookup
   , testStore
   ]
@@ -35,11 +32,11 @@ testLookup :: TestTree
 testLookup = testCase "Lookup" $ do
   store <- mkStore
   assertEqual "Looks up by UserId" (Just uid1)
-     <=< (fmap.fmap) userId $ storeLookupUserById store uid1
+     <=< (fmap.fmap) userId $ usLookupUserById store uid1
   assertEqual "Missing uid is missing" Nothing
-     <=< (fmap.fmap) userId $ storeLookupUserById store missingUid
+     <=< (fmap.fmap) userId $ usLookupUserById store missingUid
 
-  muser1 <- storeLookupUserById store uid1
+  muser1 <- usLookupUserById store uid1
   stored1 <- case muser1 of
              Nothing -> assertFailure "User1 not found"
              Just u -> pure u
@@ -53,29 +50,29 @@ testStore = testCase "Store" $ do
   usr1 <- mkUser1
 
   assertRightM' "Stores without change"
-         $ storeSaveUser store usr1
+         $ usSaveUser store usr1
 
   let usr2 = usr1 { userUsername = Username "otheruser" }
   _ <- assertLeftEqM' "Check username duplication" DuplicateUsername
-         $ storeSaveUser store usr2
+         $ usSaveUser store usr2
 
   let usr3 = usr1 { userEmailId = EmailId "otheruser@foo.bar" }
   _ <- assertLeftEqM' "Check email duplication" DuplicateEmail
-         $ storeSaveUser store usr3
+         $ usSaveUser store usr3
 
   let usr4 = usr1 { userUsername = Username "new"
                   , userEmailId = EmailId "new@example.com" }
   assertRightM' "Changes email and username"
-       $ storeSaveUser store usr4
+       $ usSaveUser store usr4
 
-  musr <- storeLookupUserById store uid1
+  musr <- usLookupUserById store uid1
   assertEqual "Changes are saved" (Just usr4) musr
 
   assertBool "Old username no longer looks up"
-     . isNothing =<< storeLookupUserByUsername store (userUsername usr1)
+     . isNothing =<< usLookupUserByUsername store (userUsername usr1)
 
   assertBool "Old email no longer lookus up"
-     . isNothing =<< storeLookupUserByEmail store (userEmailId usr1)
+     . isNothing =<< usLookupUserByEmail store (userEmailId usr1)
 
 
 
@@ -107,7 +104,7 @@ mkUsers = sequence
   , mkUsr (uid3, "thirduser", "pass3", "blah@bar.com")]
 
 mkStore :: IO UserStore
-mkStore = initMemoryUserStore =<< mkUsers
+mkStore = initUserStore =<< mkUsers
 
 {-
 data UserAuth = UserAuth

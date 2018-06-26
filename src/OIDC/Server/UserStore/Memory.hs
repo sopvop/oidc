@@ -1,18 +1,16 @@
 {-# LANGUAGE BangPatterns #-}
-module OIDC.Server.Store.Memory.UserStore
-  ( initMemoryUserStore
+module OIDC.Server.UserStore.Memory
+  ( initUserStore
   ) where
 
-import           Control.Monad       (when)
+import           Control.Monad (when)
 import           Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
-import           Data.IORef
-    (IORef, atomicModifyIORef', newIORef, readIORef)
-import           Data.Maybe          (fromMaybe)
+import           Data.IORef (IORef, atomicModifyIORef', newIORef, readIORef)
+import           Data.Maybe (fromMaybe)
 
-import           OIDC.Server.Types   (StoreUserError (..), UserStore (..))
-import           OIDC.Types
-    (EmailId (..), UserAuth (..), UserId (..), Username)
+import           OIDC.Server.UserStore (StoreUserError (..), UserStore (..))
+import           OIDC.Types (EmailId (..), UserAuth (..), UserId (..), Username)
 
 data Store = Store
   { userMap     :: HashMap UserId UserAuth
@@ -91,8 +89,8 @@ msSaveUser ms user =
        Right () -> (addUserToStore user s, Right ())
 
 
-initMemoryUserStore :: [UserAuth] -> IO UserStore
-initMemoryUserStore usrs = mkUserStore <$> newIORef store
+initUserStore :: [UserAuth] -> IO UserStore
+initUserStore usrs = mkUserStore <$> newIORef store
 
   where
     s0 = Store mempty mempty mempty
@@ -100,9 +98,9 @@ initMemoryUserStore usrs = mkUserStore <$> newIORef store
     mkUserStore !s =
       let ms = MemoryUserStore s
       in UserStore
-         { storeLookupUserById = msLookupById ms
-         , storeLookupUserByUsername = msLookupByUsername ms
-         , storeLookupUserByEmail = msLookupByEmail ms
-         , storeCreateUser = msSaveUser ms
-         , storeSaveUser = msSaveUser ms
+         { usLookupUserById = msLookupById ms
+         , usLookupUserByUsername = msLookupByUsername ms
+         , usLookupUserByEmail = msLookupByEmail ms
+         , usCreateUser = msSaveUser ms
+         , usSaveUser = msSaveUser ms
          }

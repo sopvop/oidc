@@ -22,8 +22,9 @@ library
     OIDC.Server
     OIDC.Server.Store.Memory.ClientStore
     OIDC.Server.Store.Memory.KeyStore
-    OIDC.Server.Store.Memory.UserStore
     OIDC.Server.Types
+    OIDC.Server.UserStore
+    OIDC.Server.UserStore.Memory
     OIDC.Types
     OIDC.Types.Client
     OIDC.Types.Email
@@ -73,10 +74,10 @@ test-suite tests
   ghc-options:
     -threaded -rtsopts "-with-rtsopts=-N" -Wall -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns -Wredundant-constraints -fno-warn-orphans
   other-modules:
-    Tests.OIDC.Crypto.Message
     Tests.OIDC.Crypto.Jwt
-    Tests.OIDC.Server.Store.Memory.UserStore
+    Tests.OIDC.Crypto.Message
     Tests.OIDC.Server.Store.Memory.KeyStore
+    Tests.OIDC.Server.UserStore.Memory
     Tests.OIDC.Types.Email
     Tests.Utils
   build-depends: base >= 4.10 && < 4.11
