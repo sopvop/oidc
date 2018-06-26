@@ -1,9 +1,21 @@
 let
   overrides = import ./../stagex-store/packages.nix;
-  base = import (import ./../stagex-store/pkgs.nix) { overlays = [overrides];};
+
+  oidcPkgs = self: super: {
+     haskellPackages = super.haskellPackages.extend (pself: psuper: {
+         oidc = psuper.callCabal2nix "oidc" ./oidc {};
+     });
+  };
+
+  base = import (import ./../stagex-store/pkgs.nix) {
+    overlays = [overrides oidcPkgs];
+  };
+
 in
 { pkgs ? base }:
 let
-  p = pkgs.haskellPackages.callCabal2nix "oidc" ./. {};
 
-in p.env
+in
+  base.haskellPackages.shellFor {
+    packages = p: [ p.oidc ];
+  }
