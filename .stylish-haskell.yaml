@@ -39,6 +39,7 @@ steps:
       align: global
       list_align: with_alias
       long_list_align: new_line
+      pad_module_names: false
 
   # Language pragmas
   - language_pragmas:
@@ -80,5 +81,6 @@ language_extensions:
   - MultiParamTypeClasses
   - FlexibleContexts
   - ExplicitNamespaces
+  - ExplicitForAll
   # - TemplateHaskell
   # - QuasiQuotes
