@@ -51,6 +51,7 @@ import           OIDC.Crypto.Message (encryptMessage)
 import           OIDC.Crypto.Password (verifyPassword)
 import           OIDC.Types
 
+import           OIDC.Server.ClientStore (lookupClientById)
 import           OIDC.Server.KeyStore
     (KeyStore (..), askAccessTokenSigningKey, askVerificationKeys)
 import           OIDC.Server.Types

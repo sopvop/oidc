@@ -1,19 +1,14 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings          #-}
 module OIDC.Server.Types
-    ( StoreUserError (..)
-    , InternalBackendError (..)
-
-    , ClientStore(..)
+    ( InternalBackendError (..)
 
     , ServerM(..)
     , runServerM
-    , lookupClientById
 
     , OidcConfig(..)
     , OidcEnv(..)
     , initOidcEnv
-    , KeyStore(..)
     ) where
 
 import           Control.Exception (Exception)
@@ -30,6 +25,7 @@ import           OIDC.Crypto.RNG (RNG, newRNG)
 import           OIDC.Types
     (ClientAuth, ClientId, EmailId, UserAuth, UserId, Username)
 
+import           OIDC.Server.ClientStore (ClientStore, HasClientStore (..))
 import           OIDC.Server.KeyStore (HasKeyStore (..), KeyStore)
 import           OIDC.Server.UserStore (HasUserStore (..), UserStore)
 
@@ -39,7 +35,7 @@ instance Exception InternalBackendError
 data OidcEnv = OidcEnv
   { oidcConfig         :: !OidcConfig
   , oidcUserStore      :: !UserStore
-  , oidcClients        :: !ClientStore
+  , oidcClientStore    :: !ClientStore
   , oidcKeysStore      :: !KeyStore
   , oidcKatipLogEnv    :: !LogEnv
   , oidcKatipContext   :: !LogContexts
@@ -100,22 +96,9 @@ instance HasUserStore ServerM where
 instance HasKeyStore ServerM where
   askKeyStore = asks oidcKeysStore
 
+instance HasClientStore ServerM where
+  askClientStore = asks oidcClientStore
+
 -- | Some kind of internal error happend which can't be fixed
 newtype InternalBackendError = InternalBackendError String
   deriving (Show)
-
--- | Backend error while creating user
-data StoreUserError = DuplicateUsername
-                    | DuplicateEmail
-  deriving(Eq,Ord,Show)
-
-
-newtype ClientStore = ClientStore
-  { storeLookupClientById :: ClientId -> IO (Maybe ClientAuth)
-  }
-
-lookupClientById :: ClientId -> ServerM (Maybe ClientAuth)
-lookupClientById cid = do
-  cs <- asks oidcClients
-  liftIO $ storeLookupClientById cs cid
-

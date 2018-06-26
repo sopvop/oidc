@@ -20,7 +20,8 @@ library
     OIDC.Crypto.Password
     OIDC.Crypto.RNG
     OIDC.Server
-    OIDC.Server.Store.Memory.ClientStore
+    OIDC.Server.ClientStore
+    OIDC.Server.ClientStore.Memory
     OIDC.Server.KeyStore
     OIDC.Server.KeyStore.Memory
     OIDC.Server.Types
