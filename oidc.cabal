@@ -21,7 +21,8 @@ library
     OIDC.Crypto.RNG
     OIDC.Server
     OIDC.Server.Store.Memory.ClientStore
-    OIDC.Server.Store.Memory.KeyStore
+    OIDC.Server.KeyStore
+    OIDC.Server.KeyStore.Memory
     OIDC.Server.Types
     OIDC.Server.UserStore
     OIDC.Server.UserStore.Memory
@@ -76,7 +77,7 @@ test-suite tests
   other-modules:
     Tests.OIDC.Crypto.Jwt
     Tests.OIDC.Crypto.Message
-    Tests.OIDC.Server.Store.Memory.KeyStore
+    Tests.OIDC.Server.KeyStore.Memory
     Tests.OIDC.Server.UserStore.Memory
     Tests.OIDC.Types.Email
     Tests.Utils

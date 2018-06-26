@@ -9,8 +9,6 @@ module OIDC.Server.Types
     , ServerM(..)
     , runServerM
     , lookupClientById
-    , askAccessTokenSigningKey
-    , askPublicKeys
 
     , OidcConfig(..)
     , OidcEnv(..)
@@ -32,6 +30,7 @@ import           OIDC.Crypto.RNG (RNG, newRNG)
 import           OIDC.Types
     (ClientAuth, ClientId, EmailId, UserAuth, UserId, Username)
 
+import           OIDC.Server.KeyStore (HasKeyStore (..), KeyStore)
 import           OIDC.Server.UserStore (HasUserStore (..), UserStore)
 
 instance Exception InternalBackendError
@@ -41,7 +40,7 @@ data OidcEnv = OidcEnv
   { oidcConfig         :: !OidcConfig
   , oidcUserStore      :: !UserStore
   , oidcClients        :: !ClientStore
-  , oidcKeys           :: !KeyStore
+  , oidcKeysStore      :: !KeyStore
   , oidcKatipLogEnv    :: !LogEnv
   , oidcKatipContext   :: !LogContexts
   , oidcKatipNamespace :: !Namespace
@@ -98,6 +97,9 @@ instance KatipContext ServerM where
 instance HasUserStore ServerM where
   askUserStore = asks oidcUserStore
 
+instance HasKeyStore ServerM where
+  askKeyStore = asks oidcKeysStore
+
 -- | Some kind of internal error happend which can't be fixed
 newtype InternalBackendError = InternalBackendError String
   deriving (Show)
@@ -116,20 +118,4 @@ lookupClientById :: ClientId -> ServerM (Maybe ClientAuth)
 lookupClientById cid = do
   cs <- asks oidcClients
   liftIO $ storeLookupClientById cs cid
-
-data KeyStore = KeyStore
-  { storeAccessTokenSigningKey :: IO JWK
-  , storePublicKeys            :: IO PublicKeySet
-  }
-
-askAccessTokenSigningKey :: ServerM JWK
-askAccessTokenSigningKey = do
-  us <- asks oidcKeys
-  liftIO $ storeAccessTokenSigningKey us
-
-
-askPublicKeys :: ServerM PublicKeySet
-askPublicKeys = do
-  us <- asks oidcKeys
-  liftIO $ storePublicKeys us
 

@@ -42,16 +42,19 @@ import           Network.Wai
     Response, ResponseReceived, rawQueryString, requestBody, requestBodyLength,
     requestHeaders, requestMethod, responseLBS)
 import           Network.Wai.Middleware.HttpAuth (extractBasicAuth)
+import           Web.FormUrlEncoded
+    (Form, FromForm, fromForm, lookupMaybe, lookupUnique, urlDecodeForm)
+
 import           OIDC.Crypto.Jwk (PublicKeySet (..))
 import           OIDC.Crypto.Jwt (encodeAccessToken, newAccessToken)
 import           OIDC.Crypto.Message (encryptMessage)
 import           OIDC.Crypto.Password (verifyPassword)
+import           OIDC.Types
+
+import           OIDC.Server.KeyStore
+    (KeyStore (..), askAccessTokenSigningKey, askVerificationKeys)
 import           OIDC.Server.Types
 import           OIDC.Server.UserStore (lookupUserByUsername)
-import           OIDC.Types
-import           Web.FormUrlEncoded
-    (Form, FromForm, fromForm, lookupMaybe, lookupUnique, urlDecodeForm)
-
 
 runKeysEndpoint :: OidcEnv -> Application
 runKeysEndpoint env req response = do
@@ -64,7 +67,7 @@ keysEndpoint req =
   then
     pure (methodNotAllowed [methodGet])
   else do
-   pks <- askPublicKeys
+   pks <- askVerificationKeys
    pure $ responseLBS ok200 headers (J.encode pks)
   where
    -- TODO: http caching?
@@ -165,10 +168,10 @@ mkAccessTokenResponse usr = do
 
 generateAccessToken :: UserId -> ServerM (Either JWT.Error JWT.SignedJWT)
 generateAccessToken uid = do
-  OidcEnv{oidcRNG=rng, oidcKeys=keys, oidcConfig=conf} <- ask
+  OidcEnv{oidcRNG=rng, oidcKeysStore=keys, oidcConfig=conf} <- ask
   liftIO $ do
     t <- addUTCTime (confKeysExpiration conf) <$> getCurrentTime
-    key <- storeAccessTokenSigningKey keys
+    key <- ksAskAccessTokenSigningKey keys
     liftIO $ newAccessToken key rng uid t
 
 

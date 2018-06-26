@@ -1,5 +1,5 @@
-module OIDC.Server.Store.Memory.KeyStore
-  ( initMemoryKeyStore
+module OIDC.Server.KeyStore.Memory
+  ( initKeyStore
   ) where
 
 import           Control.Concurrent.MVar
@@ -7,7 +7,7 @@ import           Control.Concurrent.MVar
 
 import           Crypto.JWT              (JWK, JWKSet (..))
 import           Data.Time               (UTCTime, addUTCTime, getCurrentTime, NominalDiffTime)
-import           OIDC.Server.Types       (KeyStore (..))
+import           OIDC.Server.KeyStore       (KeyStore (..))
 
 import           OIDC.Crypto.Jwk
     (PublicKeySet (..), generateEd25519, toPublicKeySet)
@@ -49,8 +49,8 @@ generateNewKey = do
   rng <- newRNG
   generateEd25519 rng
 
-initMemoryKeyStore :: NominalDiffTime -> Maybe JWK -> IO KeyStore
-initMemoryKeyStore expire initKey = do
+initKeyStore :: NominalDiffTime -> Maybe JWK -> IO KeyStore
+initKeyStore expire initKey = do
   t <- getCurrentTime
   key <- maybe generateNewKey pure initKey
   let s = Store key (addUTCTime (expire /2) t)
