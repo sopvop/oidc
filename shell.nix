@@ -18,4 +18,5 @@ let
 in
   base.haskellPackages.shellFor {
     packages = p: [ p.oidc ];
+    buildInputs = [base.sassc];
   }
