@@ -8,32 +8,31 @@ module OIDC.Crypto.Message
     , UrlEncoded(..)
 
     , encryptExpiringPayload
+    , decryptExpiringPayload
     , encryptMessage
     , decryptMessage
     ) where
 
-import           Codec.Serialise
-    (Serialise, deserialiseOrFail, serialise)
-import           Control.Error                    (hush)
-import           Control.Monad                    (unless)
+import           Codec.Serialise (Serialise, deserialiseOrFail, serialise)
+import           Control.Error (hush)
+import           Control.Monad (unless)
 import           Control.Monad.Trans.State.Strict (modify, runState, state)
-import qualified Crypto.Cipher.ChaChaPoly1305     as ChaCha
-import           Crypto.Error
-    (maybeCryptoError, throwCryptoErrorIO)
-import           Crypto.MAC.Poly1305              (authTag)
-import           Data.ByteArray                   (convert)
+import qualified Crypto.Cipher.ChaChaPoly1305 as ChaCha
+import           Crypto.Error (maybeCryptoError, throwCryptoErrorIO)
+import           Crypto.MAC.Poly1305 (authTag)
+import           Data.ByteArray (convert)
 import           Data.ByteArray.Encoding
     (Base (Base64URLUnpadded), convertFromBase, convertToBase)
-import           Data.ByteString                  (ByteString)
-import qualified Data.ByteString.Lazy             as BSL
-import           Data.Coerce                      (coerce)
-import           Data.Time                        (UTCTime)
-import           Data.Time.Clock.POSIX            (utcTimeToPOSIXSeconds)
-import           Data.UUID                        (UUID)
-import qualified Data.UUID                        as UUID
-import           Data.Word                        (Word64)
+import           Data.ByteString (ByteString)
+import qualified Data.ByteString.Lazy as BSL
+import           Data.Coerce (coerce)
+import           Data.Time (UTCTime)
+import           Data.Time.Clock.POSIX (utcTimeToPOSIXSeconds)
+import           Data.UUID (UUID)
+import qualified Data.UUID as UUID
+import           Data.Word (Word64)
 
-import           OIDC.Crypto.RNG                  (RNG, randomBytes)
+import           OIDC.Crypto.RNG (RNG, randomBytes)
 
 newtype OpaqueToken = OpaqueToken
     { unOpaqueToken :: ByteString }
@@ -44,40 +43,53 @@ newtype SymKey = SymKey
 newtype UrlEncoded = UrlEncoded
     { unUrlEncoded :: ByteString }
 
-urlEncoded :: ByteString -> UrlEncoded
+urlEncoded
+  :: ByteString
+  -> UrlEncoded
 urlEncoded = UrlEncoded . convertToBase Base64URLUnpadded
 
-fromUrlEncoded ::UrlEncoded -> Maybe ByteString
+fromUrlEncoded
+  :: UrlEncoded
+  -> Maybe ByteString
 fromUrlEncoded (UrlEncoded bs) =
    hush $ convertFromBase Base64URLUnpadded bs
 
-newOpaqueToken :: SymKey -> RNG -> UUID -> UTCTime -> IO OpaqueToken
-newOpaqueToken key rng uuid t = do
-  nonce <- throwCryptoErrorIO -- TODO: should report file loc
-    . ChaCha.nonce12 =<< randomBytes 12 rng
-  coerce $ encryptExpiringPayload key nonce (UUID.toByteString uuid) t
+newOpaqueToken
+  :: SymKey
+  -> RNG
+  -> UUID
+  -> UTCTime
+  -> IO OpaqueToken
+newOpaqueToken key rng uuid t =
+  coerce $ encryptExpiringPayload key rng (UUID.toByteString uuid) t
 
-readOpaqueToken :: SymKey -> OpaqueToken -> UTCTime -> Maybe UUID
+readOpaqueToken
+  :: SymKey
+  -> OpaqueToken
+  -> UTCTime
+  -> Maybe UUID
 readOpaqueToken key msg t = do
   uuid <- decryptExpiringPayload key (coerce msg) t
   UUID.fromByteString uuid
 
-encryptExpiringPayload :: Serialise a
-                    => SymKey
-                    -> ChaCha.Nonce
-                    -> a
-                    -> UTCTime
-                    -> IO UrlEncoded
-encryptExpiringPayload key nonce !msg !t =
-    encryptMessage key nonce (msg, t0 :: Word64)
+encryptExpiringPayload
+  :: Serialise a
+  => SymKey
+  -> RNG
+  -> a
+  -> UTCTime
+  -> IO UrlEncoded
+encryptExpiringPayload key rng !msg !t =
+    encryptMessage key rng (msg, t0 :: Word64)
   where
     !t0 = round (utcTimeToPOSIXSeconds t)
 
-decryptExpiringPayload :: Serialise a
-                       => SymKey
-                       -> UrlEncoded
-                       -> UTCTime
-                       -> Maybe a
+decryptExpiringPayload
+  :: Serialise a
+  => SymKey
+  -> UrlEncoded
+  -> UTCTime
+  -> Maybe a
 decryptExpiringPayload key msg t = do
   (decrypted, t0) <- decryptMessage key msg
   unless (seconds < t0) mempty
@@ -86,12 +98,15 @@ decryptExpiringPayload key msg t = do
     seconds = round (utcTimeToPOSIXSeconds t) :: Word64
 
 
-encryptMessage :: Serialise p
-               => SymKey
-               -> ChaCha.Nonce
-               -> p
-               -> IO UrlEncoded
-encryptMessage key nonce !msg = do
+encryptMessage
+  :: Serialise p
+  => SymKey
+  -> RNG
+  -> p
+  -> IO UrlEncoded
+encryptMessage key rng !msg = do
+  nonce <- throwCryptoErrorIO . ChaCha.nonce12 -- TODO: location
+             =<< randomBytes 12 rng
   initial <- throwCryptoErrorIO
     $ ChaCha.initialize (unSymKey key) nonce
 
@@ -106,10 +121,11 @@ encryptMessage key nonce !msg = do
     $ serialise (nonceBS, authBS, bs)
 
 
-decryptMessage :: Serialise a
-               => SymKey
-               -> UrlEncoded
-               -> Maybe a
+decryptMessage
+  :: Serialise a
+  => SymKey
+  -> UrlEncoded
+  -> Maybe a
 decryptMessage (SymKey key) base64 = do
    msg <- fromUrlEncoded base64
    (nonceBS, authBS, encrypted) <-
