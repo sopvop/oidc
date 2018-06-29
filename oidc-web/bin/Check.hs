@@ -13,10 +13,9 @@ initEnv = do
 
 main :: IO ()
 main = do
-  putStrLn "huita"
   env <- initEnv
-
-  Warp.runSettings settings (application env)
+  app <- application env
+  Warp.runSettings settings app
   where
     settings = Warp.setPort 8080
                Warp.defaultSettings

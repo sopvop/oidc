@@ -19,6 +19,19 @@ $input-font-size: rem-calc(16);
     margin-top: 65px;
 };
 
+.form-input-error {
+    //display: none;
+    margin-top: -0.5rem;
+    margin-bottom: 1rem;
+    font-size: 0.75rem;
+    font-weight: bold;
+    color: $alert-color;
+    font-weight: bold;
+    input {
+        border-color: $alert-color;
+        background-color:  mix($alert-color, $white, 10%);
+    };
+};
 // grid
 @include foundation-xy-grid-classes( true, false, false, false, false ,false, false, false
   /* options

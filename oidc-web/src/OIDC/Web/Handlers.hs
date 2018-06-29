@@ -1,23 +1,28 @@
+{-# LANGUAGE FlexibleContexts  #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards   #-}
 module OIDC.Web.Handlers
   ( handlers
   ) where
 
+import           Control.Monad (unless)
 import           Data.Text (Text)
 
 import           Lucid (HtmlT, renderBST)
 import qualified Lucid as H
 import           Lucid.Base (makeAttribute)
 
+import           Servant.API ((:<|>) (..))
 import           Servant.API.ContentTypes.Html (Html (..))
 import           Servant.Server (ServerT)
+import           Servant.Server.Auth.Xsrf ()
 
-import           OIDC.Web.Monad (WebM (..))
-import           OIDC.Web.Routes (RegForm, Routes)
+import           OIDC.Web.Monad (WebM (..), redirectForm)
+import           OIDC.Web.Routes (RegForm, RegFormPost, RegFormReq (..), Routes)
 
 
 handlers :: ServerT Routes WebM
-handlers = handleRegistration
+handlers = handleRegistration :<|> handleRegistrationPost
 
 unloginWrap
   :: Monad m
@@ -38,22 +43,39 @@ unloginWrap body = H.doctypehtml_ $ do
         H.div_ [H.class_ "cell large-4"] mempty -- nav
         H.div_ [H.class_ "cell large-4 medium-6 small-12"] body
 
-
 render :: Monad m => HtmlT m () -> m Html
 render = fmap Html . renderBST
 
 minlength_ :: Text -> H.Attribute
 minlength_ = makeAttribute "minlength_"
 
-handleRegistration :: ServerT RegForm WebM
-handleRegistration = render . unloginWrap $ do
+handleRegistration ::  Text -> ServerT RegForm WebM
+handleRegistration xsrf = render . unloginWrap $ do
   H.h2_ "Registration"
+  regForm $ RegFormReq xsrf "" "" "" ""
+
+handleRegistrationPost :: Text -> ServerT RegFormPost WebM
+handleRegistrationPost xsrf arg = do
+  unless (xsrf == csrf_token arg)
+    $ redirectForm [] "/accounts/registration"
+  render . unloginWrap $ do
+    H.h2_ "Registration"
+    regForm arg
+
+regForm :: Monad m => RegFormReq -> HtmlT m ()
+regForm req = do
+  let RegFormReq{..} = req
   H.form_ [ H.method_ "post" ] $ do
+    H.input_ [ H.type_ "hidden"
+             , H.value_ csrf_token
+             , H.name_ "csrf_token"
+             ]
     H.label_ $ do
       "Email address"
       H.input_ [ H.name_ "email"
                , H.type_ "email"
                , H.required_ ""
+               , H.value_ email
                ]
 
     H.label_ $ do
@@ -67,6 +89,7 @@ handleRegistration = render . unloginWrap $ do
                , H.title_ "Starts with latin letter and is followed by \
                           \letters and numbers without."
                , H.pattern_ "\\s*([a-z]|[A-Z])(\\w|_)+\\s*"
+               , H.value_ username
                ]
 
     H.label_ $ do
@@ -86,7 +109,8 @@ handleRegistration = render . unloginWrap $ do
                , H.autocomplete_ "new-password"
                , minlength_ "8"
                , H.maxlength_ "256"
-               , H.required_ "" ]
+               , H.required_ ""
+               ]
 
     H.input_ [ H.type_ "submit"
              , H.class_ "button"

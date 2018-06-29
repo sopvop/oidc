@@ -41,7 +41,8 @@ newtype SymKey = SymKey
     { unSymKey :: ByteString }
 
 newtype UrlEncoded = UrlEncoded
-    { unUrlEncoded :: ByteString }
+  { unUrlEncoded :: ByteString }
+  deriving (Eq, Ord, Show)
 
 urlEncoded
   :: ByteString
