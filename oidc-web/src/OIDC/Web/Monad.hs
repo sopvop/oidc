@@ -73,7 +73,7 @@ redirectForm
   :: MonadThrow m
   => [Header]
   -> ByteString
-  -> m ()
+  -> m a
 redirectForm h url =
   throwM $ Redirect seeOther303 ((hLocation, url):h)
 

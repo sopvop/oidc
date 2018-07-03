@@ -23,7 +23,6 @@ import           Web.Cookie
 
 import           Network.HTTP.Types (hCookie)
 
-
 import           Servant
     ((:>), Handler, HasContextEntry (getContextEntry), HasServer (..),
     Proxy (..))
@@ -108,7 +107,7 @@ makeXsrfCookie settings value = do
   pure $ defaultSetCookie
     { setCookieName = "CSRF-TOKEN"
     , setCookieValue = encrypted
-    , setCookieSecure = True
+   -- TODO: only in testing , setCookieSecure = True
     , setCookieHttpOnly = True
     , setCookieSameSite = Just sameSiteLax
     , setCookieMaxAge = Just 3600

@@ -9,7 +9,9 @@ $form-label-font-weight: normal;
 $input-font-size: rem-calc(16);
 @include foundation-forms;
 @include foundation-button;
+@include foundation-close-button;
 
+//@include foundation-callout;
 
 @include foundation-menu;
 @include foundation-top-bar;
@@ -19,6 +21,13 @@ $input-font-size: rem-calc(16);
     margin-top: 65px;
 };
 
+.form-error-alert {
+    @include callout($alert-color);
+    color: $alert-color;
+
+}
+
+/*
 .form-input-error {
     //display: none;
     margin-top: -0.5rem;
@@ -32,8 +41,9 @@ $input-font-size: rem-calc(16);
         background-color:  mix($alert-color, $white, 10%);
     };
 };
+*/
 // grid
-@include foundation-xy-grid-classes( true, false, false, false, false ,false, false, false
+@include foundation-xy-grid-classes( true, false, false, false, false ,true, false, false
   /* options
   $base-grid: true,
   $margin-grid: true,

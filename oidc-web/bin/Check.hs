@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 module Main (main) where
 
 import           OIDC.Server.UserStore.Memory (initUserStore)
@@ -17,5 +18,7 @@ main = do
   app <- application env
   Warp.runSettings settings app
   where
-    settings = Warp.setPort 8080
-               Warp.defaultSettings
+    settings =
+      Warp.setHost "dev.localhost.com"
+      $ Warp.setPort 8080
+      Warp.defaultSettings
