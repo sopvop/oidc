@@ -43,15 +43,13 @@ $input-font-size: rem-calc(16);
 };
 */
 // grid
-@include foundation-xy-grid-classes( true, false, false, false, false ,true, false, false
-  /* options
-  $base-grid: true,
-  $margin-grid: true,
-  $padding-grid: true,
-  $block-grid: true,
-  $collapse: true,
-  $offset: true,
-  $vertical-grid: true,
-  $frame-grid: true
-  */
+@include foundation-xy-grid-classes(
+    true,  // $base-grid: true
+    false, // $margin-grid: true
+    false, // $padding-grid: true
+    false, // $block-grid: true
+    false, // $collapse: true
+    true,  // $offset: true
+    false, // $vertical-grid: true
+    false  // $frame-grid: true
 );
