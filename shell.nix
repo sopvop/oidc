@@ -7,16 +7,25 @@ let
      });
   };
 
-  base = import (import ./../stagex-store/pkgs.nix) {
+  pkgs = import (import ./../stagex-store/pkgs.nix) {
     overlays = [overrides oidcPkgs];
   };
 
+  nodePackages = import oidc-web/vendor/node {
+     inherit pkgs;
+  };
+  nodeDependencies = nodePackages.shell.nodeDependencies;
 in
-{ pkgs ? base }:
-let
-
-in
-  base.haskellPackages.shellFor {
+  pkgs.haskellPackages.shellFor {
     packages = p: [ p.oidc ];
-    buildInputs = [base.sassc];
+    buildInputs = [ pkgs.sassc
+                    pkgs.nodePackages.node2nix
+                  ];
+
+
+    shellHook =
+    ''
+      export NODE_PATH=${nodeDependencies}/lib/node_modules
+      export PATH=$PATH:$NODE_PATH/.bin
+    '';
   }

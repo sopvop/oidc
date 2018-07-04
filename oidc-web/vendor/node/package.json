@@ -1,0 +1,8 @@
+{
+  "name" : "huita",
+  "version": "0.1",
+  "devDependencies" : {
+    "postcss-cli" : "*",
+    "autoprefixer" :"*"
+   }
+}
