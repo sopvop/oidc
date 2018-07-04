@@ -1,7 +1,8 @@
-{-# LANGUAGE FlexibleContexts  #-}
-{-# LANGUAGE NamedFieldPuns    #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards   #-}
+{-# LANGUAGE DuplicateRecordFields #-}
+{-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE NamedFieldPuns        #-}
+{-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE RecordWildCards       #-}
 module OIDC.Web.Handlers
   ( handlers
   ) where
@@ -31,11 +32,14 @@ import           OIDC.Server.UserStore (lookupUserByEmail, lookupUserByUsername)
 import           OIDC.Types (Username (..))
 import           OIDC.Types.Email (parseEmailAddress, toEmailId)
 import           OIDC.Web.Monad (WebM (..), redirectForm)
-import           OIDC.Web.Routes (RegForm, RegFormPost, RegFormReq (..), Routes)
+import           OIDC.Web.Routes
+    (LoginForm, LoginFormPost, LoginFormReq (..), RegForm, RegFormPost,
+    RegFormReq (..), Routes)
 
 
 handlers :: ServerT Routes WebM
 handlers = handleRegistration :<|> handleRegistrationPost
+  :<|> handleLogin :<|> handleLoginPost
 
 unloginWrap
   :: Monad m
@@ -56,9 +60,11 @@ unloginWrap body = H.doctypehtml_ $ do
         H.div_ [H.class_ "cell large-4 medium-6 small-12 large-offset-2"] body
 
     H.script_ [H.src_ "/static/jquery.min.js"] (""::Text)
-    H.script_ [H.src_ "/static/foundation.min.js"] (""::Text)
-    H.script_ [H.src_ "/static/foundation.toggler.min.js"] (""::Text)
-    H.script_ ("$(document).foundation();" :: Text)
+    H.script_ [H.src_ "/static/site.js"] (""::Text)
+    --H.script_ [H.src_ "/static/foundation.min.js"] (""::Text)
+    --H.script_ [H.src_ "/static/foundation.toggler.min.js"] (""::Text)
+    --H.script_ ("$(document).foundation();" :: Text)
+    H.script_ ("site.init();" :: Text)
 
 render :: Monad m => HtmlT m () -> m Html
 render = fmap Html . renderBST
@@ -77,6 +83,23 @@ data FormEnv e = FormEnv
   }
 
 type Form e a = HtmlT (Reader (FormEnv e)) a
+
+
+calloutAlert
+  :: Monad m
+  => HtmlT m ()
+  -> HtmlT m ()
+calloutAlert h = do
+  H.div_ [ H.class_ "form-error-alert"
+         , H.role_ "alert"
+         , H.data_ "closable" "" ] $ do
+    h
+    H.button_ [ H.class_ "close-button"
+              , aria_ "label" "Dismiss alert"
+              , H.type_ "button"
+              , H.data_ "close" "" ]
+      $ H.span_ [ aria_ "hidden" "true" ] (H.toHtmlRaw ("&times;"::Text))
+
 
 runForm :: [e] -> Form e a -> H.Html a
 runForm es h = runReader (commuteHtmlT h) env
@@ -130,7 +153,7 @@ formInput attrs = do
     name = inputId env
     invalidAttrs =
       if hasErrors
-      then [H.class_ " is-invalid-input", aria_ "invalid" ""]
+      then [H.id_ name, H.class_ " is-invalid-input", aria_ "invalid" ""]
       else []
 
   H.input_ $ attrs <>
@@ -142,17 +165,6 @@ form
   -> Form e a
   -> H.Html a
 form csrf es content = do
-  unless (null es) $
-    H.div_ [ H.class_ "form-error-alert"
-           , H.role_ "alert"
-           , H.data_ "closable" "" ] $ do
-       "There are errors in your form."
-       H.button_ [ H.class_ "close-button"
-                 , aria_ "label" "Dismiss alert"
-                 , H.type_ "button"
-                 , H.data_ "close" "" ]
-         $ H.span_ [ aria_ "hidden" "true" ] (H.toHtmlRaw ("&times;"::Text))
-
   H.form_ [H.method_ "post"] $ do
     H.input_ [ H.type_ "hidden"
              , H.value_ csrf
@@ -181,7 +193,7 @@ handleRegistrationPost
   :: Text
   -> ServerT RegFormPost WebM
 handleRegistrationPost xsrf arg = do
-  unless (xsrf == csrf_token arg)
+  unless (xsrf == csrf_token)
     $ redirectForm [] "/accounts/registration"
 
   nameTaken <- runExceptT $ do
@@ -202,8 +214,6 @@ handleRegistrationPost xsrf arg = do
           *> passCheck
           *> passEqCheck
 
-  liftIO $ print v
-
   case v ^. _Validation of
     Right _ -> do
       -- create user and shit
@@ -214,7 +224,12 @@ handleRegistrationPost xsrf arg = do
       regForm errs arg
 
   where
-    RegFormReq{username,email,password,password2} = arg
+    RegFormReq
+      { csrf_token
+      , username
+      , email
+      , password
+      , password2 } = arg
     passCheck = do
       unless (Text.length password > 8)
         $ _Failure # [RegPasswordTooShort]
@@ -306,5 +321,89 @@ regForm errs req = relaxHtmlT $ do
         "Passwords should match"
 
     H.input_ [ H.type_ "submit"
-             , H.class_ "button"
+             , H.class_ "button expanded"
              , H.value_ "Register" ]
+
+
+
+
+handleLogin ::  Text -> ServerT LoginForm WebM
+handleLogin xsrf = render . unloginWrap $ do
+  H.h2_ "Sign-in"
+  --TODO: Extract email from header
+  loginForm [] $ LoginFormReq xsrf "" "" Nothing
+
+data LoginError
+  = LoginUserNotFount
+  | LoginBadPassword
+  deriving(Eq,Ord,Show)
+
+handleLoginPost
+  :: Text
+  -> ServerT LoginFormPost WebM
+handleLoginPost xsrf arg = do
+  unless (xsrf == csrf_token)
+    $ redirectForm [] "/accounts/login"
+
+  usr <- lookupUserByUsername
+         $ Username username
+
+  let v = _Failure # [()]
+
+  case v ^. _Validation of
+    Right _ -> do
+      -- create user and shit
+      redirectForm [] "/profile"
+
+    Left errs -> render . unloginWrap $ do
+      H.h2_ "Sign-in"
+      loginForm errs arg
+
+  where
+    LoginFormReq
+      { csrf_token
+      , username
+      , password
+      , remember } = arg
+
+loginForm
+  :: Monad m
+  => [()]
+  -> LoginFormReq
+  -> HtmlT m ()
+loginForm errs req = relaxHtmlT $ do
+  let LoginFormReq{..} = req
+  form csrf_token errs $ do
+    labeledInput "username" [()] $ do
+      "Username or email"
+      formInput [ H.name_ "username"
+                , H.type_ "text"
+                , H.autocomplete_ "username"
+                , minlength_ "3"
+                , H.maxlength_ "128"
+                , H.required_ ""
+                , H.title_ "Your username or email"
+                , H.value_ username
+                ]
+
+    labeledInput "password" [()] $ do
+      "Password"
+      formInput [ H.name_ "password"
+                , H.type_ "password"
+                , H.autocomplete_ "current-password"
+                , minlength_ "8"
+                , H.maxlength_ "256"
+                , H.required_ ""
+                , H.title_ "Your password"
+                ]
+
+    labeledInput "remember" [] $ do
+
+      formInput [ H.name_ "remember"
+                , H.type_ "checkbox"
+                ]
+      H.label_ [H.for_ "remember"] "Remember me"
+
+    H.input_ [ H.type_ "submit"
+             , H.class_ "button expanded"
+             , H.value_ "Sign-in" ]

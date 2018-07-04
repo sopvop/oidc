@@ -3,3 +3,4 @@ sassc -I vendor/foundation-sites/scss/ css/site.scss \
   | postcss --no-map --use autoprefixer \
   | sassc > static/site.min.css
 
+cp js/site.js static/site.js
