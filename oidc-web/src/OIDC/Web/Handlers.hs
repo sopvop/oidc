@@ -28,14 +28,15 @@ import           Servant.API.ContentTypes.Html (Html (..))
 import           Servant.Server (ServerT)
 import           Servant.Server.Auth.Xsrf ()
 
+import           OIDC.Crypto.Password (CleartextPassword (..))
 import           OIDC.Server.UserStore (lookupUserByEmail, lookupUserByUsername)
 import           OIDC.Types (Username (..))
 import           OIDC.Types.Email (parseEmailAddress, toEmailId)
 import           OIDC.Web.Monad (WebM (..), redirectForm)
+import           OIDC.Web.Registration (RegError (..), registerNewUser)
 import           OIDC.Web.Routes
     (LoginForm, LoginFormPost, LoginFormReq (..), RegForm, RegFormPost,
     RegFormReq (..), Routes)
-
 
 handlers :: ServerT Routes WebM
 handlers = handleRegistration :<|> handleRegistrationPost
@@ -179,15 +180,6 @@ handleRegistration xsrf = render . unloginWrap $ do
   --TODO: Extract email from header
   regForm [] $ RegFormReq xsrf "" "" "" ""
 
-data RegError
-  = RegUsernameTaken
-  | RegUsernameIsBad
-  | RegEmailTaken
-  | RegEmailIsBad
-  | RegPasswordTooShort
-  | RegPasswordTooSimple
-  | RegPasswordNoMatch
-  deriving(Eq,Ord,Show)
 
 handleRegistrationPost
   :: Text
@@ -196,28 +188,11 @@ handleRegistrationPost xsrf arg = do
   unless (xsrf == csrf_token)
     $ redirectForm [] "/accounts/registration"
 
-  nameTaken <- runExceptT $ do
-    unless (isValidUsername username)
-      $ throwE [RegUsernameIsBad]
-    ExceptT . fmap (isTaken RegUsernameTaken)
-      . lookupUserByUsername
-      $ Username username
+  res <- registerNewUser (Username username)
+    email (CleartextPassword password) (CleartextPassword password2)
 
-  emailCheck <- runExceptT $ do
-    addr <- case toEmailId <$> parseEmailAddress email of
-          Nothing -> throwE [RegEmailIsBad]
-          Just ok -> pure ok
-    ExceptT $ isTaken RegEmailTaken <$> lookupUserByEmail addr
-
-  let v = nameTaken^.from _Validation
-          *> emailCheck ^. from _Validation
-          *> passCheck
-          *> passEqCheck
-
-  case v ^. _Validation of
-    Right _ -> do
-      -- create user and shit
-      redirectForm [] "/profile"
+  case res of
+    Right _ -> redirectForm [] "/profile"
 
     Left errs -> render . unloginWrap $ do
       H.h2_ "Registration"
@@ -230,23 +205,6 @@ handleRegistrationPost xsrf arg = do
       , email
       , password
       , password2 } = arg
-    passCheck = do
-      unless (Text.length password > 8)
-        $ _Failure # [RegPasswordTooShort]
-      --TODO: password check against DB
-
-    passEqCheck = unless (password == password2)
-                  $ _Failure # [RegPasswordNoMatch]
-
-    isTaken e = maybe (Right ()) (const $ Left [e])
-
-    isValidUsername nm = len >= 3 && len <= 24
-      && Text.all validLetter (Text.take 1 nm)
-      && Text.all validChar  (Text.drop 1 nm)
-      where
-        len = Text.length nm
-        validLetter c = isAscii c && isAlpha c && isLower c
-        validChar c = isNumber c || validLetter c || c == '_'
 
 regForm
   :: Monad m

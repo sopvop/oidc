@@ -7,18 +7,19 @@ module OIDC.Types.Email
     , toEmailId
     , parseEmailAddress
     , parseEmailAddressBS
+    , toText
     ) where
 
-import           Control.Error       (hush)
-import           Data.ByteString     (ByteString)
-import qualified Data.ByteString     as BS
-import           Data.Coerce         (coerce)
-import           Data.Hashable       (Hashable)
-import           Data.Semigroup      ((<>))
-import           Data.Text           (Text)
-import qualified Data.Text.Encoding  as Text
-import           Data.Word           (Word8)
-import qualified Text.Email.Parser   as EV
+import           Control.Error (hush)
+import           Data.ByteString (ByteString)
+import qualified Data.ByteString as BS
+import           Data.Coerce (coerce)
+import           Data.Hashable (Hashable)
+import           Data.Semigroup ((<>))
+import           Data.Text (Text)
+import qualified Data.Text.Encoding as Text
+import           Data.Word (Word8)
+import qualified Text.Email.Parser as EV
 import qualified Text.Email.Validate as EV
 
 -- | Email address with dots @.@ and characters after @+@ sign
@@ -48,3 +49,6 @@ toEmailId (EmailAddress addr) = EmailId result
                 . BS.takeWhile (/= plus) $ EV.localPart addr
     plus = 43 :: Word8
     dot = 46 :: Word8
+
+toText :: EmailAddress -> Text
+toText (EmailAddress addr) = Text.decodeLatin1 $ EV.toByteString addr

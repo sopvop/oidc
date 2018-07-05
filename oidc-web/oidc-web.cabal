@@ -20,6 +20,7 @@ library
     OIDC.Web
     OIDC.Web.Handlers
     OIDC.Web.Monad
+    OIDC.Web.Registration
     OIDC.Web.Routes
     OIDC.Web.Session
     Servant.API.ContentTypes.Html
@@ -37,6 +38,8 @@ library
                , lucid
                , bytestring
                , text
+               , jose
+               , aeson
                , http-media
                , http-api-data
                , http-types
