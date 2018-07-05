@@ -83,7 +83,7 @@ registerNewUser username email password password2 = do
 
     passCheck = do
       let (CleartextPassword p) = password
-      unless (Text.length p > 8)
+      unless (Text.length p >= 8)
         $ _Failure # [RegPasswordTooShort]
       --TODO: password check against DB
 
