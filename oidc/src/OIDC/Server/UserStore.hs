@@ -4,6 +4,9 @@ module OIDC.Server.UserStore
   , lookupUserById
   , lookupUserByUsername
   , lookupUserByEmail
+  , storeRememberToken
+  , lookupByRememberToken
+  , deleteRememberToken
   , createUser
   , saveUser
   , StoreUserError(..)
@@ -13,9 +16,9 @@ module OIDC.Server.UserStore
 
 import           Control.Monad.IO.Class (MonadIO, liftIO)
 import           Control.Monad.Trans.Reader (ReaderT, ask)
+import           Data.ByteString.Short (ShortByteString)
 import           Data.Time (UTCTime)
 
-import           OIDC.Crypto.Message (UrlEncoded)
 import           OIDC.Types (EmailId, UserAuth, UserId, Username)
 
 -- | Backend error while creating user
@@ -24,7 +27,7 @@ data StoreUserError = DuplicateUsername
   deriving(Eq,Ord,Show)
 
 newtype RememberToken = RememberToken
-  { unRememberToken :: UrlEncoded
+  { unRememberToken :: ShortByteString
   } deriving(Eq, Ord, Show)
 
 -- | A class implementing user storage
@@ -95,6 +98,32 @@ lookupUserByEmail
   -> m (Maybe UserAuth)
 lookupUserByEmail email = withUserStore $ \us ->
   liftIO $ usLookupUserByEmail us email
+
+
+storeRememberToken
+  :: HasUserStore m
+  => UserId
+  -> RememberToken
+  -> UTCTime
+  -> m ()
+storeRememberToken uid tok t = withUserStore $ \us ->
+  liftIO $ usStoreRememberToken us uid tok t
+
+lookupByRememberToken
+  :: HasUserStore m
+  => RememberToken
+  -> UTCTime
+  -> m (Maybe UserAuth)
+lookupByRememberToken tok tout = withUserStore $ \us ->
+  liftIO $ usLookupByRememeberToken us tok tout
+
+deleteRememberToken
+  :: HasUserStore m
+  => RememberToken
+  -> m ()
+deleteRememberToken tok = withUserStore $ \us ->
+  liftIO $ usDeleteRememberToken us tok
+
 
 createUser
   :: HasUserStore m

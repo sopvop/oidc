@@ -24,11 +24,9 @@ import           Servant.Server
 import           Servant.Server.Auth.Xsrf (XsrfSettings (..))
 import           Servant.Utils.StaticFiles (serveDirectoryWebApp)
 
-import           OIDC.Crypto.Message
-    (SymKey (..), decryptExpiringPayload, encryptExpiringPayload)
-import           OIDC.Crypto.RNG (RNG, newRNG, randomBytes)
 import           OIDC.Web.Handlers (handlers)
-import           OIDC.Web.Monad (HasWeb (..), Redirect (..), Web, runWebM)
+import           OIDC.Web.Monad
+    (HasWeb (..), Redirect (..), Web (..), WebCrypto (..), runWebM)
 import           OIDC.Web.Routes (Routes)
 
 
@@ -43,8 +41,7 @@ api = Proxy
 
 application :: Web -> IO Application
 application env = do
-  rng <- newRNG
-  xsrf <- mkXsrfSettings rng
+  xsrf <- mkXsrfSettings env
   let ctx = xsrf :. EmptyContext
   pure . serveWithContext api ctx $
        hoistServerWithContext routes context liftWebM handlers
@@ -59,18 +56,17 @@ application env = do
         msg = BSC.unpack $ statusMessage status
       pure $ Left (ServantErr code msg mempty headers)
 
-
-mkXsrfSettings :: RNG -> IO XsrfSettings
-mkXsrfSettings rng = do
-  key <- SymKey <$> randomBytes 32 rng
+mkXsrfSettings :: Web -> IO XsrfSettings
+mkXsrfSettings w = do
   let
+    wc = _webCrypto w
     encrypt msg = do
       t <- getCurrentTime
       let expire = addUTCTime 3600 t
-      encryptExpiringPayload key rng msg expire
+      wcEncryptMessage wc msg expire
     decrypt msg =
-      decryptExpiringPayload key msg <$> getCurrentTime
+      wcDecryptMessage wc msg =<< getCurrentTime
     generate = toStrict . toLazyByteString . byteStringHex
-      <$> randomBytes 16 rng
+      <$> wcGenerateToken wc 16
   pure $ XsrfSettings generate encrypt decrypt
 

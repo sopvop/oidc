@@ -7,7 +7,6 @@ import           Control.Error
 import           Control.Lens
 import           Control.Monad (unless)
 import           Control.Monad.IO.Class (liftIO)
-import           Data.Bifunctor (first)
 import           Data.Char (isAlpha, isAscii, isLower, isNumber)
 import           Data.Either.Validation
 import           Data.Text (Text)

@@ -8,16 +8,12 @@ module OIDC.Web.Handlers
   ) where
 
 
-import           Control.Error
-import           Control.Lens
+
 import           Control.Monad (unless)
-import           Control.Monad.IO.Class (liftIO)
+
 import           Control.Monad.Reader (Reader, ask, asks, local, runReader)
-import           Data.Char (isAlpha, isAscii, isLower, isNumber)
-import           Data.Either.Validation
 import           Data.Semigroup ((<>))
 import           Data.Text (Text)
-import qualified Data.Text as Text
 
 import           Lucid (HtmlT, renderBST)
 import qualified Lucid as H
@@ -29,18 +25,19 @@ import           Servant.Server (ServerT)
 import           Servant.Server.Auth.Xsrf ()
 
 import           OIDC.Crypto.Password (CleartextPassword (..))
-import           OIDC.Server.UserStore (lookupUserByEmail, lookupUserByUsername)
-import           OIDC.Types (Username (..))
-import           OIDC.Types.Email (parseEmailAddress, toEmailId)
+import           OIDC.Types (UserAuth (..), Username (..))
 import           OIDC.Web.Monad (WebM (..), redirectForm)
 import           OIDC.Web.Registration (RegError (..), registerNewUser)
 import           OIDC.Web.Routes
     (LoginForm, LoginFormPost, LoginFormReq (..), RegForm, RegFormPost,
     RegFormReq (..), Routes)
+import           OIDC.Web.SignIn (authenticateUser)
+import           Servant.Auth.Server
+    (CookieSettings, JWTSettings, makeSessionCookie)
 
-handlers :: ServerT Routes WebM
-handlers = handleRegistration :<|> handleRegistrationPost
-  :<|> handleLogin :<|> handleLoginPost
+handlers :: CookieSettings -> JWTSettings -> ServerT Routes WebM
+handlers c j = handleRegistration :<|> handleRegistrationPost
+  :<|> handleLogin :<|> handleLoginPost c j
 
 unloginWrap
   :: Monad m
@@ -285,7 +282,7 @@ regForm errs req = relaxHtmlT $ do
 
 
 
-handleLogin ::  Text -> ServerT LoginForm WebM
+handleLogin :: Text -> ServerT LoginForm WebM
 handleLogin xsrf = render . unloginWrap $ do
   H.h2_ "Sign-in"
   --TODO: Extract email from header
@@ -297,25 +294,27 @@ data LoginError
   deriving(Eq,Ord,Show)
 
 handleLoginPost
-  :: Text
+  :: CookieSettings
+  -> JWTSettings
+  -> Text
   -> ServerT LoginFormPost WebM
-handleLoginPost xsrf arg = do
+handleLoginPost cs js xsrf arg = do
   unless (xsrf == csrf_token)
     $ redirectForm [] "/accounts/login"
 
-  usr <- lookupUserByUsername
-         $ Username username
+  auth <- authenticateUser
+    username
+    (CleartextPassword password)
+    (remember == Just "on")
 
-  let v = _Failure # [()]
+  case auth of
+    Just (usr, remember) -> do
+      let session = makeSessionCookie cs js (userId usr)
 
-  case v ^. _Validation of
-    Right _ -> do
-      -- create user and shit
-      redirectForm [] "/profile"
-
-    Left errs -> render . unloginWrap $ do
+      redirectForm [] "/profile" --TODO: cookies
+    Nothing ->  render . unloginWrap $ do
       H.h2_ "Sign-in"
-      loginForm errs arg
+      loginForm [()] arg
 
   where
     LoginFormReq

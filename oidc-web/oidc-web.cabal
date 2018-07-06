@@ -23,8 +23,9 @@ library
     OIDC.Web.Registration
     OIDC.Web.Routes
     OIDC.Web.Session
-    Servant.API.ContentTypes.Html
+    OIDC.Web.SignIn
     Servant.API.Auth.Xsrf
+    Servant.API.ContentTypes.Html
     Servant.Server.Auth.Xsrf
   -- other-modules:
   -- other-extensions:

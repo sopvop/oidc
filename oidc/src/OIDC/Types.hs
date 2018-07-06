@@ -26,28 +26,22 @@ module OIDC.Types
     , ErrorResponse (..)
     ) where
 
-import           Crypto.JWT              (SignedJWT)
-import           Data.Aeson              (FromJSON (..), ToJSON (..), withText)
-import           Data.Aeson.Encoding     (unsafeToEncoding)
-import           Data.Aeson.TH
-    (Options (..), defaultOptions, deriveJSON)
-import           Data.Aeson.Types        (camelTo2)
-import           Data.ByteString         (ByteString)
+import           Data.Aeson (FromJSON (..), ToJSON (..), withText)
+import           Data.Aeson.Encoding (unsafeToEncoding)
+import           Data.Aeson.TH (Options (..), defaultOptions, deriveJSON)
+import           Data.Aeson.Types (camelTo2)
+import           Data.ByteString (ByteString)
 import qualified Data.ByteString.Builder as BL
-import qualified Data.ByteString.Lazy    as BL
-import           Data.Semigroup          ((<>))
-import           Data.Text               (Text)
-import qualified Data.Text.Encoding      as Text
-import           Data.Time               (UTCTime)
-import           Web.FormUrlEncoded      (FromForm (..))
-import qualified Web.FormUrlEncoded      as Form
-import           Web.HttpApiData         (FromHttpApiData, ToHttpApiData)
+import           Data.Semigroup ((<>))
+import           Data.Text (Text)
+import qualified Data.Text.Encoding as Text
+import           Web.FormUrlEncoded (FromForm (..))
+import qualified Web.FormUrlEncoded as Form
 
-import           OIDC.Crypto.Password    (CleartextPassword (..), Password (..))
-import           OIDC.Types.Client       (ClientAuth (..), ClientId (..))
-import           OIDC.Types.Email        (EmailAddress (..), EmailId (..))
-import           OIDC.Types.UserAuth
-    (UserAuth (..), UserId (..), Username (..))
+import           OIDC.Crypto.Password (CleartextPassword (..), Password (..))
+import           OIDC.Types.Client (ClientAuth (..), ClientId (..))
+import           OIDC.Types.Email (EmailAddress (..), EmailId (..))
+import           OIDC.Types.UserAuth (UserAuth (..), UserId (..), Username (..))
 
 data GrantType
     = AuthorizationCodeGrant
@@ -64,12 +58,14 @@ data ResponseType
       deriving (Eq, Ord, Show)
 
 type Scope = Text
-type RedirectUri = Text
 type RefreshToken = Text
+{-
+type RedirectUri = Text
 type AuthorizationCode = Text
 type ClientSecret = Text
+-}
 type Url = Text
-type State = Text
+
 type Seconds = Int
 type TokenType = Text
 type RememberToken = Text
@@ -93,7 +89,7 @@ newtype AccessToken = AccessToken
   { unAccessToken :: Base64Url
   } deriving (Eq, Ord, Show, FromJSON, ToJSON)
 
-
+{-
 -- | Either @token@ or @code@ request to authorization endpoint.
 data AuthRequest = AuthRequest
     { arClientId    :: ClientId
@@ -115,7 +111,7 @@ data AccessTokenRequest = AccessTokenRequest
     , atrRedirectUri :: Maybe RedirectUri
     , atrClientId    :: Maybe ClientId
     } deriving(Eq, Show)
-
+-}
 
 data PasswordGrantRequest = PasswordGrantRequest
     { pgrUsername :: !Username
