@@ -11,9 +11,8 @@ module Tests.Utils
   , assertLeftEqM'
   ) where
 
-import           Control.Exception (throwIO)
-import           Data.Semigroup    ((<>))
-import           Test.Tasty.HUnit  (HUnitFailure (..), assertFailure)
+import           Data.Semigroup ((<>))
+import           Test.Tasty.HUnit (assertFailure)
 
 assertRight :: String -> Either a b -> IO b
 assertRight txt act = case act of
