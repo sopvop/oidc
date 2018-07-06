@@ -8,12 +8,14 @@ import           Data.ByteString (ByteString)
 import           Data.Maybe (isNothing)
 import           Data.Semigroup ((<>))
 import           Data.Text (Text)
+import           Data.Time (UTCTime (..), addUTCTime, fromGregorian)
 import qualified Data.UUID as UUID
 
 import           Test.Tasty
 import           Test.Tasty.HUnit
 
-import           OIDC.Server.UserStore (StoreUserError (..), UserStore (..))
+import           OIDC.Server.UserStore
+    (RememberToken (..), StoreUserError (..), UserStore (..))
 import           OIDC.Server.UserStore.Memory (initUserStore)
 import           OIDC.Types
     (EmailId (..), Password (..), UserAuth (..), UserId (..), Username (..))
@@ -25,6 +27,7 @@ testTree :: TestTree
 testTree = testGroup "Tests.OIDC.Server.UserStore.Memory"
   [ testLookup
   , testStore
+  , testRememberToken
   ]
 
 
@@ -75,6 +78,34 @@ testStore = testCase "Store" $ do
      . isNothing =<< usLookupUserByEmail store (userEmailId usr1)
 
 
+
+testRememberToken :: TestTree
+testRememberToken = testCase "RememberToken" $ do
+  store <- mkStore
+  usr1 <- mkUser1
+
+  let
+    tok1 = RememberToken "tok1"
+    usrid1 = userId usr1
+    t0 = UTCTime (fromGregorian 2018 01 01) 0
+
+  usStoreRememberToken store usrid1 tok1 t0
+
+  got1 <- usLookupByRememeberToken store tok1 (addUTCTime (-1000) t0)
+  assertEqual "Token was saved" (Just usr1) got1
+
+  got2 <- usLookupByRememeberToken store tok1 (addUTCTime 1000 t0)
+  assertEqual "Token timed out" Nothing got2
+
+  got3 <- usLookupByRememeberToken store tok1 (addUTCTime (-1000) t0)
+  assertEqual "Timed out token removed from store" Nothing got3
+
+  usStoreRememberToken store missingUid tok1 t0
+  got4 <- usLookupByRememeberToken store tok1 (addUTCTime (-1000) t0)
+  assertEqual "Token not saved for missing user" Nothing got4
+
+
+  pure ()
 
 uid1 :: UserId
 uid1 = UserId (UUID.fromWords 0 0 0 1)

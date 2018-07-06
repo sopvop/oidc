@@ -8,11 +8,14 @@ module OIDC.Server.UserStore
   , saveUser
   , StoreUserError(..)
   , UserStore (..)
+  , RememberToken(..)
   ) where
 
 import           Control.Monad.IO.Class (MonadIO, liftIO)
 import           Control.Monad.Trans.Reader (ReaderT, ask)
+import           Data.Time (UTCTime)
 
+import           OIDC.Crypto.Message (UrlEncoded)
 import           OIDC.Types (EmailId, UserAuth, UserId, Username)
 
 -- | Backend error while creating user
@@ -20,15 +23,41 @@ data StoreUserError = DuplicateUsername
                     | DuplicateEmail
   deriving(Eq,Ord,Show)
 
+newtype RememberToken = RememberToken
+  { unRememberToken :: UrlEncoded
+  } deriving(Eq, Ord, Show)
 
 -- | A class implementing user storage
 data UserStore = UserStore
-  { usLookupUserById       :: UserId -> IO (Maybe UserAuth)
-  , usLookupUserByUsername :: Username -> IO (Maybe UserAuth)
-  , usLookupUserByEmail    :: EmailId -> IO (Maybe UserAuth)
+  { usLookupUserById
+    :: UserId
+    -> IO (Maybe UserAuth)
+  , usLookupUserByUsername
+    :: Username
+    -> IO (Maybe UserAuth)
+  , usLookupUserByEmail
+    :: EmailId
+    -> IO (Maybe UserAuth)
 
-  , usCreateUser           :: UserAuth -> IO (Either StoreUserError ())
-  , usSaveUser             :: UserAuth -> IO (Either StoreUserError ())
+  , usStoreRememberToken
+    :: UserId
+    -> RememberToken
+    -> UTCTime
+    -> IO ()
+  , usLookupByRememeberToken
+    :: RememberToken
+    -> UTCTime
+    -> IO (Maybe UserAuth)
+  , usDeleteRememberToken
+    :: RememberToken
+    -> IO ()
+
+  , usCreateUser
+    :: UserAuth
+    -> IO (Either StoreUserError ())
+  , usSaveUser
+    :: UserAuth
+    -> IO (Either StoreUserError ())
   }
 
 class MonadIO m => HasUserStore m where
