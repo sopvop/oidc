@@ -10,8 +10,11 @@ module OIDC.Web.Routes
   , LoginForm
   , LoginFormPost
   , LoginFormReq(..)
+  , UserIdClaim(..)
   ) where
 
+import           Control.Lens (( # ), (&), (?~))
+import           Crypto.JWT (StringOrURI, claimIss, claimSub, emptyClaimsSet)
 import           Data.Text (Text)
 import           GHC.Generics (Generic)
 import           Web.FormUrlEncoded
@@ -19,6 +22,11 @@ import           Web.FormUrlEncoded
 import           Servant.API ((:<|>), (:>), FormUrlEncoded, Get, Post, ReqBody)
 import           Servant.API.Auth.Xsrf (XsrfCookie)
 import           Servant.API.ContentTypes.Html (Html)
+import           Servant.Auth.Server (ToJWT (..))
+
+
+import           OIDC.Crypto.Jwt (userSub)
+import           OIDC.Types (UserId)
 
 type Routes = XsrfCookie :> RegForm
               :<|> XsrfCookie :> RegFormPost
@@ -48,7 +56,6 @@ type LoginFormPost =
   :> Post '[Html] Html
 
 
-
 data RegFormReq = RegFormReq
   { csrf_token :: Text
   , username   :: Text
@@ -68,3 +75,13 @@ data LoginFormReq = LoginFormReq
 
 instance FromForm LoginFormReq where
 
+data UserIdClaim = UserIdClaim
+  { claimUser   :: UserId
+  , claimIssuer :: StringOrURI
+  }
+
+instance ToJWT UserIdClaim where
+  encodeJWT claim =
+    emptyClaimsSet
+    & claimSub ?~ userSub # claimUser claim
+    & claimIss ?~ claimIssuer claim

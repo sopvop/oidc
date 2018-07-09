@@ -7,36 +7,36 @@ module OIDC.Crypto.Jwt
     , verifyAccessToken
     , toUserIdSub
     , fromUserIdSub
+    , userSub
     , encodeAccessToken
     , decodeAccessToken
     ) where
 
-import           Control.Error              (note)
+import           Control.Error (note)
 import           Control.Lens
     (Prism', coerced, preview, prism, review, (&), (.~), (?~), (^.))
 import           Control.Monad.Except
     (Except, MonadError, runExcept, runExceptT)
-import           Control.Monad.Time         (MonadTime (..))
+import           Control.Monad.Time (MonadTime (..))
 import           Control.Monad.Trans.Reader (ReaderT, ask, runReaderT)
-import           Crypto.JOSE.JWS            (Alg (EdDSA), newJWSHeader)
+import           Crypto.JOSE.JWS (Alg (EdDSA), newJWSHeader)
 import           Crypto.JWT
     (ClaimsSet, Error, JWK, JWKStore, JWTError, JWTValidationSettings,
     NumericDate (..), SignedJWT, StringOrURI, algorithms, claimExp, claimIss,
     claimSub, decodeCompact, defaultJWTValidationSettings, emptyClaimsSet,
     encodeCompact, issuerPredicate, signClaims, string, verifyClaims)
-import           Crypto.Random              (withDRG)
-import           Data.Bifunctor             (first)
-import qualified Data.ByteString.Lazy       as BL
-import           Data.Coerce                (coerce)
-import qualified Data.Set                   as Set
-import           Data.Text                  (Text)
-import qualified Data.Text                  as Text
-import           Data.Time                  (UTCTime)
-import qualified Data.UUID                  as UUID
+import           Crypto.Random (withDRG)
+import           Data.Bifunctor (first)
+import qualified Data.ByteString.Lazy as BL
+import           Data.Coerce (coerce)
+import qualified Data.Set as Set
+import           Data.Text (Text)
+import qualified Data.Text as Text
+import           Data.Time (UTCTime)
+import qualified Data.UUID as UUID
 
-import           OIDC.Crypto.RNG            (RNG, withRNG)
-import           OIDC.Types
-    (AccessToken (..), Base64Url (..), UserId (..))
+import           OIDC.Crypto.RNG (RNG, withRNG)
+import           OIDC.Types (AccessToken (..), Base64Url (..), UserId (..))
 
 
 newToken :: JWK -> RNG -> ClaimsSet -> IO (Either Error SignedJWT)

@@ -8,16 +8,22 @@ module OIDC.Web.Handlers
   ) where
 
 
-
 import           Control.Monad (unless)
-
+import           Control.Monad.IO.Class (liftIO)
 import           Control.Monad.Reader (Reader, ask, asks, local, runReader)
+import qualified Data.ByteString.Builder as BL
+import qualified Data.ByteString.Lazy as BSL
+import           Data.Maybe (catMaybes, fromMaybe)
 import           Data.Semigroup ((<>))
 import           Data.Text (Text)
 
 import           Lucid (HtmlT, renderBST)
 import qualified Lucid as H
 import           Lucid.Base (commuteHtmlT, makeAttribute, relaxHtmlT)
+import           Web.Cookie
+    (defaultSetCookie, renderSetCookie, sameSiteLax, setCookieHttpOnly,
+    setCookieMaxAge, setCookieName, setCookiePath, setCookieSameSite,
+    setCookieSecure, setCookieValue)
 
 import           Servant.API ((:<|>) (..))
 import           Servant.API.ContentTypes.Html (Html (..))
@@ -26,11 +32,11 @@ import           Servant.Server.Auth.Xsrf ()
 
 import           OIDC.Crypto.Password (CleartextPassword (..))
 import           OIDC.Types (UserAuth (..), Username (..))
-import           OIDC.Web.Monad (WebM (..), redirectForm)
+import           OIDC.Web.Monad (WebM (..), encodeRememberToken, redirectForm)
 import           OIDC.Web.Registration (RegError (..), registerNewUser)
 import           OIDC.Web.Routes
     (LoginForm, LoginFormPost, LoginFormReq (..), RegForm, RegFormPost,
-    RegFormReq (..), Routes)
+    RegFormReq (..), Routes, UserIdClaim (..))
 import           OIDC.Web.SignIn (authenticateUser)
 import           Servant.Auth.Server
     (CookieSettings, JWTSettings, makeSessionCookie)
@@ -308,10 +314,28 @@ handleLoginPost cs js xsrf arg = do
     (remember == Just "on")
 
   case auth of
-    Just (usr, remember) -> do
-      let session = makeSessionCookie cs js (userId usr)
+    Just (usr, rememberToken) -> do
 
-      redirectForm [] "/profile" --TODO: cookies
+      session <- liftIO . makeSessionCookie cs js $
+          UserIdClaim (userId usr) "foo.bar.com"
+      let
+        mkRemember r = defaultSetCookie
+          { setCookieName = "rememberme"
+          , setCookiePath = Just "/"
+          , setCookieValue =  r
+          , setCookieMaxAge = Just $ 3600*24*14
+          , setCookieHttpOnly= True
+          , setCookieSecure  = False --TODO: True on prod
+          , setCookieSameSite = Just sameSiteLax
+          }
+        headers =
+          (,) "Set-Cookie" . BSL.toStrict . BL.toLazyByteString
+          . renderSetCookie
+          <$> catMaybes
+          [ session
+          , mkRemember . encodeRememberToken <$> rememberToken ]
+
+      redirectForm headers "/profile" --TODO: cookies
     Nothing ->  render . unloginWrap $ do
       H.h2_ "Sign-in"
       loginForm [()] arg
@@ -356,9 +380,11 @@ loginForm errs req = relaxHtmlT $ do
 
     labeledInput "remember" [] $ do
 
-      formInput [ H.name_ "remember"
+      formInput $ [ H.name_ "remember"
                 , H.type_ "checkbox"
-                ]
+                , H.value_ "on"
+                ] <>  [ H.checked_ | remember == Just "on" ]
+
       H.label_ [H.for_ "remember"] "Remember me"
 
     H.input_ [ H.type_ "submit"

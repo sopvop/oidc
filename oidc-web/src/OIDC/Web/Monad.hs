@@ -21,9 +21,12 @@ module OIDC.Web.Monad
   , generateToken
   , encryptMessage
   , decryptMessage
+  , encodeRememberToken
+  , decodeRememberToken
   ) where
 
 import           Codec.Serialise (Serialise)
+import           Control.Error (hush)
 import           Control.Lens (view)
 import           Control.Lens.TH (makeClassy)
 import           Control.Monad.Catch
@@ -32,6 +35,8 @@ import           Control.Monad.IO.Class (MonadIO, liftIO)
 import           Control.Monad.Reader (MonadReader, ReaderT (..), runReaderT)
 import qualified Crypto.JOSE.JWK as JWK
 import           Crypto.JOSE.Types (Base64Octets (..))
+import           Data.ByteArray.Encoding
+    (Base (Base64URLUnpadded), convertFromBase, convertToBase)
 import           Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Short as SBS
@@ -138,6 +143,14 @@ newRememberToken
   :: HasWebCrypto m
   => m RememberToken
 newRememberToken = withWebCrypto $ liftIO . wcNewRememberToken
+
+encodeRememberToken :: RememberToken -> ByteString
+encodeRememberToken (RememberToken t) =
+  convertToBase Base64URLUnpadded $ SBS.fromShort t
+
+decodeRememberToken :: ByteString -> Maybe RememberToken
+decodeRememberToken bs =
+  RememberToken . SBS.toShort <$> hush (convertFromBase Base64URLUnpadded bs)
 
 encryptMessage
   :: HasWebCrypto m

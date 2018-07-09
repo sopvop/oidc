@@ -17,6 +17,9 @@ import           Data.Time (addUTCTime, getCurrentTime)
 import           Network.HTTP.Types (Status (..))
 
 import           Servant.API ((:<|>) (..), (:>), Raw)
+import           Servant.Auth.Server
+    (CookieSettings (..), JWTSettings (..), defaultCookieSettings,
+    defaultJWTSettings, generateKey)
 import           Servant.Auth.Server.SetCookieOrphan ()
 import           Servant.Server
     (Application, Context (..), Handler (..), ServantErr (..),
@@ -33,7 +36,7 @@ import           OIDC.Web.Routes (Routes)
 routes :: Proxy Routes
 routes = Proxy
 
-context :: Proxy '[XsrfSettings]
+context :: Proxy '[JWTSettings, CookieSettings, XsrfSettings]
 context = Proxy
 
 api :: Proxy (Routes :<|> ("static" :> Raw))
@@ -42,9 +45,11 @@ api = Proxy
 application :: Web -> IO Application
 application env = do
   xsrf <- mkXsrfSettings env
-  let ctx = xsrf :. EmptyContext
+  jwt <- jwtSettings <$> generateKey
+  let ctx =  jwtSettings :. cookieSettings :. xsrf :. EmptyContext
   pure . serveWithContext api ctx $
-       hoistServerWithContext routes context liftWebM handlers
+       hoistServerWithContext routes context liftWebM
+          (handlers cookieSettings jwt)
        :<|> static
   where
     liftWebM act = Handler . ExceptT . catchRedirect $ runWebM env act
@@ -55,6 +60,12 @@ application env = do
         code = statusCode status
         msg = BSC.unpack $ statusMessage status
       pure $ Left (ServantErr code msg mempty headers)
+
+    cookieSettings = defaultCookieSettings
+      { cookieXsrfSetting = Nothing
+      }
+    jwtSettings = defaultJWTSettings
+
 
 mkXsrfSettings :: Web -> IO XsrfSettings
 mkXsrfSettings w = do
