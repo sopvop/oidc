@@ -5,12 +5,15 @@ import           Data.Maybe (fromJust)
 
 import           OIDC.Server.UserStore.Memory (initUserStore)
 import           OIDC.Web (application)
-import           OIDC.Web.Monad (Web, initWeb, initWebCrypto, newKey)
+import           OIDC.Web.Monad
+    (Environment (..), Web, initWeb, initWebCrypto, newKey)
 
 import           OIDC.Types (Password (..))
 import           OIDC.Types.Email (parseEmailAddress, toEmailId)
 import           OIDC.Types.UserAuth
     (UserAuth (..), Username (..), userIdFromString)
+import           Servant.Auth.Server (generateKey)
+
 
 import qualified Network.Wai.Handler.Warp as Warp
 
@@ -29,7 +32,8 @@ initEnv = do
         ]
   key <- newKey
   cry <- initWebCrypto key
-  initWeb "static" us cry
+  jwk <- generateKey
+  initWeb TestingEnvironment "static" us cry jwk
 
 main :: IO ()
 main = do

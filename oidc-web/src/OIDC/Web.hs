@@ -17,9 +17,7 @@ import           Data.Time (addUTCTime, getCurrentTime)
 import           Network.HTTP.Types (Status (..))
 
 import           Servant.API ((:<|>) (..), (:>), Raw)
-import           Servant.Auth.Server
-    (CookieSettings (..), JWTSettings (..), defaultCookieSettings,
-    defaultJWTSettings, generateKey)
+import           Servant.Auth.Server (CookieSettings (..), JWTSettings (..))
 import           Servant.Auth.Server.SetCookieOrphan ()
 import           Servant.Server
     (Application, Context (..), Handler (..), ServantErr (..),
@@ -29,7 +27,8 @@ import           Servant.Utils.StaticFiles (serveDirectoryWebApp)
 
 import           OIDC.Web.Handlers (handlers)
 import           OIDC.Web.Monad
-    (HasWeb (..), Redirect (..), Web (..), WebCrypto (..), runWebM)
+    (HasWeb (..), Redirect (..), Web (..), WebCrypto (..), jwtSettings,
+    runWebM, sessionCookieSettings)
 import           OIDC.Web.Routes (Routes)
 
 
@@ -45,11 +44,12 @@ api = Proxy
 application :: Web -> IO Application
 application env = do
   xsrf <- mkXsrfSettings env
-  jwt <- jwtSettings <$> generateKey
-  let ctx =  jwtSettings :. cookieSettings :. xsrf :. EmptyContext
+  let
+    ctx =  jwtSettings env
+           :. sessionCookieSettings env
+           :. xsrf :. EmptyContext
   pure . serveWithContext api ctx $
-       hoistServerWithContext routes context liftWebM
-          (handlers cookieSettings jwt)
+       hoistServerWithContext routes context liftWebM  handlers
        :<|> static
   where
     liftWebM act = Handler . ExceptT . catchRedirect $ runWebM env act
@@ -60,11 +60,6 @@ application env = do
         code = statusCode status
         msg = BSC.unpack $ statusMessage status
       pure $ Left (ServantErr code msg mempty headers)
-
-    cookieSettings = defaultCookieSettings
-      { cookieXsrfSetting = Nothing
-      }
-    jwtSettings = defaultJWTSettings
 
 
 mkXsrfSettings :: Web -> IO XsrfSettings

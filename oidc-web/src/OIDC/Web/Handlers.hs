@@ -9,21 +9,14 @@ module OIDC.Web.Handlers
 
 
 import           Control.Monad (unless)
-import           Control.Monad.IO.Class (liftIO)
 import           Control.Monad.Reader (Reader, ask, asks, local, runReader)
-import qualified Data.ByteString.Builder as BL
-import qualified Data.ByteString.Lazy as BSL
-import           Data.Maybe (catMaybes, fromMaybe)
+import           Data.Maybe (catMaybes)
 import           Data.Semigroup ((<>))
 import           Data.Text (Text)
-
+import           Data.Traversable (for)
 import           Lucid (HtmlT, renderBST)
 import qualified Lucid as H
 import           Lucid.Base (commuteHtmlT, makeAttribute, relaxHtmlT)
-import           Web.Cookie
-    (defaultSetCookie, renderSetCookie, sameSiteLax, setCookieHttpOnly,
-    setCookieMaxAge, setCookieName, setCookiePath, setCookieSameSite,
-    setCookieSecure, setCookieValue)
 
 import           Servant.API ((:<|>) (..))
 import           Servant.API.ContentTypes.Html (Html (..))
@@ -32,18 +25,17 @@ import           Servant.Server.Auth.Xsrf ()
 
 import           OIDC.Crypto.Password (CleartextPassword (..))
 import           OIDC.Types (UserAuth (..), Username (..))
-import           OIDC.Web.Monad (WebM (..), encodeRememberToken, redirectForm)
+import           OIDC.Web.Monad
+    (WebM (..), mkRememberCookieHeader, mkSessionCookieHeader, redirectForm)
 import           OIDC.Web.Registration (RegError (..), registerNewUser)
 import           OIDC.Web.Routes
     (LoginForm, LoginFormPost, LoginFormReq (..), RegForm, RegFormPost,
-    RegFormReq (..), Routes, UserIdClaim (..))
+    RegFormReq (..), Routes)
 import           OIDC.Web.SignIn (authenticateUser)
-import           Servant.Auth.Server
-    (CookieSettings, JWTSettings, makeSessionCookie)
 
-handlers :: CookieSettings -> JWTSettings -> ServerT Routes WebM
-handlers c j = handleRegistration :<|> handleRegistrationPost
-  :<|> handleLogin :<|> handleLoginPost c j
+handlers :: ServerT Routes WebM
+handlers = handleRegistration :<|> handleRegistrationPost
+  :<|> handleLogin :<|> handleLoginPost
 
 unloginWrap
   :: Monad m
@@ -300,11 +292,9 @@ data LoginError
   deriving(Eq,Ord,Show)
 
 handleLoginPost
-  :: CookieSettings
-  -> JWTSettings
-  -> Text
+  ::  Text
   -> ServerT LoginFormPost WebM
-handleLoginPost cs js xsrf arg = do
+handleLoginPost xsrf arg = do
   unless (xsrf == csrf_token)
     $ redirectForm [] "/accounts/login"
 
@@ -316,24 +306,13 @@ handleLoginPost cs js xsrf arg = do
   case auth of
     Just (usr, rememberToken) -> do
 
-      session <- liftIO . makeSessionCookie cs js $
-          UserIdClaim (userId usr) "foo.bar.com"
+      sessionCookie <- mkSessionCookieHeader usr
+
+      rememberCookie <- for rememberToken $
+        mkRememberCookieHeader (userId usr)
       let
-        mkRemember r = defaultSetCookie
-          { setCookieName = "rememberme"
-          , setCookiePath = Just "/"
-          , setCookieValue =  r
-          , setCookieMaxAge = Just $ 3600*24*14
-          , setCookieHttpOnly= True
-          , setCookieSecure  = False --TODO: True on prod
-          , setCookieSameSite = Just sameSiteLax
-          }
-        headers =
-          (,) "Set-Cookie" . BSL.toStrict . BL.toLazyByteString
-          . renderSetCookie
-          <$> catMaybes
-          [ session
-          , mkRemember . encodeRememberToken <$> rememberToken ]
+        headers = catMaybes [ sessionCookie
+                            , rememberCookie ]
 
       redirectForm headers "/profile" --TODO: cookies
     Nothing ->  render . unloginWrap $ do

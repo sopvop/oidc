@@ -36,6 +36,7 @@ library
                , servant
                , errors
                , servant-server
+               , uuid-types
                , lucid
                , bytestring
                , text
@@ -68,6 +69,7 @@ executable oidc-check
                , oidc-web
                , oidc
                , warp
+               , servant-auth-server
                , wai
   -- other-modules:
   hs-source-dirs:      bin

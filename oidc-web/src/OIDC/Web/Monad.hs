@@ -1,4 +1,7 @@
+{-# LANGUAGE BangPatterns               #-}
+{-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE RankNTypes                 #-}
 {-# LANGUAGE TemplateHaskell            #-}
 
@@ -7,7 +10,10 @@ module OIDC.Web.Monad
   , runWebM
   , Web(..)
   , HasWeb(..)
+  , Environment(..)
   , initWeb
+  , sessionCookieSettings
+  , jwtSettings
   , Redirect(..)
   , redirect
   , redirectForm
@@ -21,27 +27,39 @@ module OIDC.Web.Monad
   , generateToken
   , encryptMessage
   , decryptMessage
-  , encodeRememberToken
-  , decodeRememberToken
+  , mkRememberCookieHeader
+  , mkSessionCookieHeader
   ) where
 
 import           Codec.Serialise (Serialise)
-import           Control.Error (hush)
+
 import           Control.Lens (view)
 import           Control.Lens.TH (makeClassy)
 import           Control.Monad.Catch
     (Exception, MonadCatch, MonadMask, MonadThrow, throwM)
 import           Control.Monad.IO.Class (MonadIO, liftIO)
-import           Control.Monad.Reader (MonadReader, ReaderT (..), runReaderT)
+import           Control.Monad.Reader
+    (MonadReader, ReaderT (..), ask, runReaderT)
 import qualified Crypto.JOSE.JWK as JWK
 import           Crypto.JOSE.Types (Base64Octets (..))
-import           Data.ByteArray.Encoding
-    (Base (Base64URLUnpadded), convertFromBase, convertToBase)
 import           Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
+import qualified Data.ByteString.Builder as BL
+import qualified Data.ByteString.Lazy as BSL
 import qualified Data.ByteString.Short as SBS
-import           Data.Time (UTCTime)
+import           Data.Time (UTCTime, getCurrentTime)
+import qualified Data.UUID.Types as UUID
 import           Network.HTTP.Types (Header, Status, hLocation, seeOther303)
+import           Web.Cookie
+    (SetCookie, defaultSetCookie, renderSetCookie, sameSiteLax,
+    setCookieHttpOnly, setCookieMaxAge, setCookieName, setCookiePath,
+    setCookieSameSite, setCookieSecure, setCookieValue)
+
+import           Crypto.JWT (JWK)
+
+import           Servant.Auth.Server
+    (CookieSettings (..), IsSecure (..), JWTSettings, defaultCookieSettings,
+    defaultJWTSettings, makeSessionCookie)
 
 import           OIDC.Crypto.Message
     (SymKey (..), decryptExpiringPayload, encryptExpiringPayload)
@@ -49,19 +67,31 @@ import           OIDC.Crypto.Message (UrlEncoded (..))
 import           OIDC.Crypto.RNG (newRNG, randomBytes)
 import           OIDC.Server.UserStore
     (HasUserStore (..), RememberToken (..), UserStore (..))
+import           OIDC.Types (UserAuth (..), UserId (..))
+
+import           OIDC.Web.Routes (UserIdClaim (..))
+
+data Environment
+  = TestingEnvironment
+  | ProductionEnvironment
+  deriving(Eq,Ord,Show)
 
 data Web = Web
-  { _userStore       :: UserStore
+  { _environment     :: Environment
+  , _userStore       :: UserStore
   , _webCrypto       :: WebCrypto
   , _staticDirectory :: FilePath
+  , _jwtSigningKey   :: JWK
   }
 
 initWeb
-  :: FilePath
+  :: Environment
+  -> FilePath
   -> UserStore
   -> WebCrypto
+  -> JWK
   -> IO Web
-initWeb p s w = pure $ Web s w p
+initWeb e p s w k = pure $ Web e s w p k
 
 newtype WebM a = WebM
   { unWebM :: ReaderT Web IO a }
@@ -69,15 +99,11 @@ newtype WebM a = WebM
            , MonadIO, MonadReader Web
            , MonadThrow, MonadCatch, MonadMask )
 
-
 runWebM
   :: Web
   -> WebM a
   -> IO a
 runWebM env act = runReaderT (unWebM act) env
-
-
-
 
 data Redirect = Redirect Status [Header]
   deriving (Show)
@@ -101,6 +127,66 @@ redirectForm
   -> m a
 redirectForm h url =
   throwM $ Redirect seeOther303 ((hLocation, url):h)
+
+
+sessionCookieSettings
+  :: Web
+  -> CookieSettings
+sessionCookieSettings env =
+  defaultCookieSettings
+  { cookieIsSecure =  secure
+  , cookieXsrfSetting = Nothing }
+  where
+    !secure = if _environment env /= TestingEnvironment
+             then Secure
+             else NotSecure
+
+jwtSettings
+  :: Web
+  -> JWTSettings
+jwtSettings = defaultJWTSettings . _jwtSigningKey
+
+mkSessionCookieHeader
+  :: UserAuth
+  -> WebM (Maybe Header)
+mkSessionCookieHeader usr = do
+  env <- ask
+  let
+    cs = sessionCookieSettings env
+    js = jwtSettings env
+  fmap (fmap renderSetCookieHeader)
+    . liftIO . makeSessionCookie cs js
+    $ UserIdClaim (userId usr) "foo.bar.com"
+
+mkRememberCookieHeader
+  :: UserId
+  -> RememberToken
+  -> WebM Header
+mkRememberCookieHeader (UserId uid) (RememberToken token) = do
+    env <- ask
+    msg <- liftIO $ wcEncryptMessage (_webCrypto env)
+           (UUID.toByteString uid, token)
+           =<< getCurrentTime
+    let
+      cookie =
+        defaultSetCookie
+        { setCookieName = "rememberme"
+        , setCookiePath = Just "/"
+        , setCookieValue =  unUrlEncoded msg
+        , setCookieMaxAge = Just $ 3600*24*14
+        , setCookieHttpOnly= True
+        , setCookieSecure  = _environment env /= TestingEnvironment
+        , setCookieSameSite = Just sameSiteLax
+        }
+    pure $ renderSetCookieHeader cookie
+
+renderSetCookieHeader
+  :: SetCookie
+  -> Header
+renderSetCookieHeader c = ( "Set-Cookie", value )
+  where
+    !value = BSL.toStrict . BL.toLazyByteString $ renderSetCookie c
+
 
 data WebCrypto = WebCrypto
   { wcGenerateToken
@@ -144,13 +230,6 @@ newRememberToken
   => m RememberToken
 newRememberToken = withWebCrypto $ liftIO . wcNewRememberToken
 
-encodeRememberToken :: RememberToken -> ByteString
-encodeRememberToken (RememberToken t) =
-  convertToBase Base64URLUnpadded $ SBS.fromShort t
-
-decodeRememberToken :: ByteString -> Maybe RememberToken
-decodeRememberToken bs =
-  RememberToken . SBS.toShort <$> hush (convertFromBase Base64URLUnpadded bs)
 
 encryptMessage
   :: HasWebCrypto m
