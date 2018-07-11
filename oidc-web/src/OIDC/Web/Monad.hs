@@ -4,6 +4,7 @@
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE RankNTypes                 #-}
 {-# LANGUAGE TemplateHaskell            #-}
+{-# LANGUAGE TupleSections              #-}
 
 module OIDC.Web.Monad
   ( WebM(..)
@@ -27,12 +28,15 @@ module OIDC.Web.Monad
   , generateToken
   , encryptMessage
   , decryptMessage
+  , rememberSetCookie
   , mkRememberCookieHeader
   , mkSessionCookieHeader
+  , encryptRememberCookie
+  , authenticateRememberCookie
   ) where
 
 import           Codec.Serialise (Serialise)
-
+import           Control.Error (MaybeT (..), hoistMaybe, runMaybeT)
 import           Control.Lens (view)
 import           Control.Lens.TH (makeClassy)
 import           Control.Monad.Catch
@@ -47,7 +51,7 @@ import qualified Data.ByteString as BS
 import qualified Data.ByteString.Builder as BL
 import qualified Data.ByteString.Lazy as BSL
 import qualified Data.ByteString.Short as SBS
-import           Data.Time (UTCTime, getCurrentTime)
+import           Data.Time (UTCTime, addUTCTime, getCurrentTime)
 import qualified Data.UUID.Types as UUID
 import           Network.HTTP.Types (Header, Status, hLocation, seeOther303)
 import           Web.Cookie
@@ -62,8 +66,8 @@ import           Servant.Auth.Server
     defaultJWTSettings, makeSessionCookie)
 
 import           OIDC.Crypto.Message
-    (SymKey (..), decryptExpiringPayload, encryptExpiringPayload)
-import           OIDC.Crypto.Message (UrlEncoded (..))
+    (SymKey (..), UrlEncoded (..), decryptExpiringPayload,
+    encryptExpiringPayload)
 import           OIDC.Crypto.RNG (newRNG, randomBytes)
 import           OIDC.Server.UserStore
     (HasUserStore (..), RememberToken (..), UserStore (..))
@@ -162,23 +166,53 @@ mkRememberCookieHeader
   :: UserId
   -> RememberToken
   -> WebM Header
-mkRememberCookieHeader (UserId uid) (RememberToken token) = do
+mkRememberCookieHeader uid token = do
     env <- ask
-    msg <- liftIO $ wcEncryptMessage (_webCrypto env)
-           (UUID.toByteString uid, token)
-           =<< getCurrentTime
+    msg <- liftIO $ encryptRememberCookie (_webCrypto env) uid token
     let
-      cookie =
-        defaultSetCookie
-        { setCookieName = "rememberme"
-        , setCookiePath = Just "/"
-        , setCookieValue =  unUrlEncoded msg
-        , setCookieMaxAge = Just $ 3600*24*14
-        , setCookieHttpOnly= True
-        , setCookieSecure  = _environment env /= TestingEnvironment
-        , setCookieSameSite = Just sameSiteLax
-        }
+      cookie = (rememberSetCookie env)
+        { setCookieValue =  unUrlEncoded msg  }
     pure $ renderSetCookieHeader cookie
+
+
+encryptRememberCookie
+  :: WebCrypto
+  -> UserId
+  -> RememberToken
+  -> IO UrlEncoded
+encryptRememberCookie wc (UserId uid) (RememberToken token) =
+    wcEncryptMessage wc (UUID.toByteString uid, token)
+    =<< getCurrentTime
+
+
+authenticateRememberCookie
+  :: WebCrypto
+  -> UserStore
+  -> UrlEncoded
+  -> IO (Maybe UserAuth)
+authenticateRememberCookie wc us value = do
+  t <- getCurrentTime
+  runMaybeT $ do
+    (uid, tok) <- MaybeT $ wcDecryptMessage wc value (addUTCTime (3600*24*14) t)
+    let remember = RememberToken tok
+    uuid <- hoistMaybe $ UUID.fromByteString uid
+    auth <- MaybeT $ usLookupByRememberToken us (UserId uuid) remember t
+    liftIO $ usStoreRememberToken us (userId auth) remember t
+    pure auth
+
+rememberSetCookie
+  :: Web
+  -> SetCookie
+rememberSetCookie env  =
+  defaultSetCookie
+  { setCookieName = "rememberme"
+  , setCookiePath = Just "/"
+  , setCookieMaxAge = Just $ 3600*24*14
+  , setCookieHttpOnly= True
+  , setCookieSecure  = _environment env /= TestingEnvironment
+  , setCookieSameSite = Just sameSiteLax
+  }
+
 
 renderSetCookieHeader
   :: SetCookie

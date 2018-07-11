@@ -119,10 +119,11 @@ msStoreRememberToken ms uid token t =
     let rm = rememberMap s0
         userExists = HashMap.member uid $ userMap s0
     in if userExists
-       then (s0 { rememberMap = HashMap.insertWith mappend uid [(bs, t)] rm }, ())
+       then (s0 { rememberMap = HashMap.insertWith filtToken uid [(bs, t)] rm }, ())
        else (s0, ())
   where
     RememberToken bs = token
+    filtToken new old = new ++ filter ((== bs) . fst) old
 
 msLookupByRememberToken
   :: MemoryUserStore

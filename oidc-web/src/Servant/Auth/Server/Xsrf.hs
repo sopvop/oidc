@@ -9,8 +9,8 @@
 {-# LANGUAGE UndecidableInstances  #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
-module Servant.Server.Auth.Xsrf
-  ( XsrfCookie
+module Servant.Auth.Server.Xsrf
+   ( XsrfCookie
   , XsrfSettings(..)
   ) where
 
@@ -42,6 +42,7 @@ data XsrfSettings = XsrfSettings
   { xsrfGenerateToken :: IO ByteString -- ASCII
   , xsrfEncryptToken  :: ByteString -> IO UrlEncoded
   , xsrfDecodeToken   :: UrlEncoded -> IO (Maybe ByteString)
+  , xsrfCookieSecure  :: Bool
   }
 
 
@@ -107,7 +108,7 @@ makeXsrfCookie settings value = do
   pure $ defaultSetCookie
     { setCookieName = "CSRF-TOKEN"
     , setCookieValue = encrypted
-   -- TODO: only in testing , setCookieSecure = True
+    , setCookieSecure = xsrfCookieSecure settings
     , setCookieHttpOnly = True
     , setCookieSameSite = Just sameSiteLax
     , setCookieMaxAge = Just 3600

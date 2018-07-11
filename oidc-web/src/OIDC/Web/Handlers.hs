@@ -9,6 +9,7 @@ module OIDC.Web.Handlers
 
 
 import           Control.Monad (unless)
+import           Control.Monad.IO.Class
 import           Control.Monad.Reader (Reader, ask, asks, local, runReader)
 import           Data.Maybe (catMaybes)
 import           Data.Semigroup ((<>))
@@ -20,8 +21,10 @@ import           Lucid.Base (commuteHtmlT, makeAttribute, relaxHtmlT)
 
 import           Servant.API ((:<|>) (..))
 import           Servant.API.ContentTypes.Html (Html (..))
+import           Servant.Auth.Server (AuthResult (..))
+import           Servant.Auth.Server.Remember ()
+import           Servant.Auth.Server.Xsrf ()
 import           Servant.Server (ServerT)
-import           Servant.Server.Auth.Xsrf ()
 
 import           OIDC.Crypto.Password (CleartextPassword (..))
 import           OIDC.Types (UserAuth (..), Username (..))
@@ -30,7 +33,7 @@ import           OIDC.Web.Monad
 import           OIDC.Web.Registration (RegError (..), registerNewUser)
 import           OIDC.Web.Routes
     (LoginForm, LoginFormPost, LoginFormReq (..), RegForm, RegFormPost,
-    RegFormReq (..), Routes)
+    RegFormReq (..), Routes, UserIdClaim)
 import           OIDC.Web.SignIn (authenticateUser)
 
 handlers :: ServerT Routes WebM
@@ -85,7 +88,7 @@ calloutAlert
   :: Monad m
   => HtmlT m ()
   -> HtmlT m ()
-calloutAlert h = do
+calloutAlert h =
   H.div_ [ H.class_ "form-error-alert"
          , H.role_ "alert"
          , H.data_ "closable" "" ] $ do
@@ -160,7 +163,7 @@ form
   -> [e]
   -> Form e a
   -> H.Html a
-form csrf es content = do
+form csrf es content =
   H.form_ [H.method_ "post"] $ do
     H.input_ [ H.type_ "hidden"
              , H.value_ csrf
@@ -169,17 +172,21 @@ form csrf es content = do
     runForm es content
 
 
-handleRegistration ::  Text -> ServerT RegForm WebM
-handleRegistration xsrf = render . unloginWrap $ do
+handleRegistration
+  :: AuthResult UserIdClaim
+  -> Text
+  -> ServerT RegForm WebM
+handleRegistration auth xsrf = render . unloginWrap $ do
   H.h2_ "Registration"
   --TODO: Extract email from header
   regForm [] $ RegFormReq xsrf "" "" "" ""
 
 
 handleRegistrationPost
-  :: Text
+  :: AuthResult UserIdClaim
+  -> Text
   -> ServerT RegFormPost WebM
-handleRegistrationPost xsrf arg = do
+handleRegistrationPost auth xsrf arg = do
   unless (xsrf == csrf_token)
     $ redirectForm [] "/accounts/registration"
 
@@ -280,8 +287,11 @@ regForm errs req = relaxHtmlT $ do
 
 
 
-handleLogin :: Text -> ServerT LoginForm WebM
-handleLogin xsrf = render . unloginWrap $ do
+handleLogin
+  :: AuthResult UserIdClaim
+  -> Text
+  -> ServerT LoginForm WebM
+handleLogin auth xsrf = render . unloginWrap $ do
   H.h2_ "Sign-in"
   --TODO: Extract email from header
   loginForm [] $ LoginFormReq xsrf "" "" Nothing
@@ -292,9 +302,10 @@ data LoginError
   deriving(Eq,Ord,Show)
 
 handleLoginPost
-  ::  Text
+  :: AuthResult UserIdClaim
+  -> Text
   -> ServerT LoginFormPost WebM
-handleLoginPost xsrf arg = do
+handleLoginPost sessionAuth xsrf arg = do
   unless (xsrf == csrf_token)
     $ redirectForm [] "/accounts/login"
 
@@ -369,3 +380,8 @@ loginForm errs req = relaxHtmlT $ do
     H.input_ [ H.type_ "submit"
              , H.class_ "button expanded"
              , H.value_ "Sign-in" ]
+
+
+handleProfile auth = do
+  render . unloginWrap $ do
+    H.h2_ "Sign-in"

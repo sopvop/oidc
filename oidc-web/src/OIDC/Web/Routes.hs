@@ -1,6 +1,7 @@
 {-# LANGUAGE DataKinds             #-}
 {-# LANGUAGE DeriveGeneric         #-}
 {-# LANGUAGE DuplicateRecordFields #-}
+{-# LANGUAGE OverloadedStrings     #-}
 {-# LANGUAGE TypeOperators         #-}
 module OIDC.Web.Routes
   ( Routes
@@ -13,7 +14,8 @@ module OIDC.Web.Routes
   , UserIdClaim(..)
   ) where
 
-import           Control.Lens (( # ), (&), (?~))
+import           Control.Error (note)
+import           Control.Lens (preview, view, ( # ), (&), (?~), _Just)
 import           Crypto.JWT (StringOrURI, claimIss, claimSub, emptyClaimsSet)
 import           Data.Text (Text)
 import           GHC.Generics (Generic)
@@ -22,16 +24,19 @@ import           Web.FormUrlEncoded
 import           Servant.API ((:<|>), (:>), FormUrlEncoded, Get, Post, ReqBody)
 import           Servant.API.Auth.Xsrf (XsrfCookie)
 import           Servant.API.ContentTypes.Html (Html)
-import           Servant.Auth.Server (ToJWT (..))
+import           Servant.Auth.Server (Auth, Cookie, FromJWT (..), ToJWT (..))
+import           Servant.Auth.Server.Remember (Remember)
 
 
 import           OIDC.Crypto.Jwt (userSub)
 import           OIDC.Types (UserId)
 
-type Routes = XsrfCookie :> RegForm
-              :<|> XsrfCookie :> RegFormPost
-              :<|> XsrfCookie :> LoginForm
-              :<|> XsrfCookie :> LoginFormPost
+type Routes = Protected :> XsrfCookie :> RegForm
+              :<|> Protected :> XsrfCookie :> RegFormPost
+              :<|> Protected :> XsrfCookie :> LoginForm
+              :<|> Protected :> XsrfCookie :> LoginFormPost
+
+type Protected = Auth '[Cookie, Remember UserIdClaim] UserIdClaim
 
 type RegForm =
   "accounts"
@@ -78,10 +83,16 @@ instance FromForm LoginFormReq where
 data UserIdClaim = UserIdClaim
   { claimUser   :: UserId
   , claimIssuer :: StringOrURI
-  }
+  } deriving(Eq, Show)
 
 instance ToJWT UserIdClaim where
   encodeJWT claim =
     emptyClaimsSet
     & claimSub ?~ userSub # claimUser claim
     & claimIss ?~ claimIssuer claim
+
+instance FromJWT UserIdClaim where
+  decodeJWT claims =
+    note "Can't parse useridclaim" $ UserIdClaim
+    <$> preview (claimSub._Just.userSub) claims
+    <*> view claimIss claims

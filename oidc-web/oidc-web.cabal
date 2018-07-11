@@ -26,7 +26,8 @@ library
     OIDC.Web.SignIn
     Servant.API.Auth.Xsrf
     Servant.API.ContentTypes.Html
-    Servant.Server.Auth.Xsrf
+    Servant.Auth.Server.Remember
+    Servant.Auth.Server.Xsrf
   -- other-modules:
   -- other-extensions:
   build-depends: base                     >= 4.10 && <4.11
