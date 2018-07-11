@@ -1,4 +1,5 @@
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE ViewPatterns #-}
 module OIDC.Server.UserStore.Memory
   ( initUserStore
   ) where
@@ -19,7 +20,7 @@ data Store = Store
   { userMap     :: HashMap UserId UserAuth
   , usernameMap :: HashMap Username UserId
   , emailMap    :: HashMap EmailId UserId
-  , rememberMap :: HashMap ShortByteString (UserId, UTCTime)
+  , rememberMap :: HashMap UserId  [(ShortByteString, UTCTime)]
   }
 
 newtype MemoryUserStore = MemoryUserStore
@@ -118,40 +119,49 @@ msStoreRememberToken ms uid token t =
     let rm = rememberMap s0
         userExists = HashMap.member uid $ userMap s0
     in if userExists
-       then (s0 { rememberMap = HashMap.insert bs (uid,t) rm }, ())
+       then (s0 { rememberMap = HashMap.insertWith mappend uid [(bs, t)] rm }, ())
        else (s0, ())
   where
     RememberToken bs = token
 
 msLookupByRememberToken
   :: MemoryUserStore
+  -> UserId
   -> RememberToken
   -> UTCTime
   -> IO (Maybe UserAuth)
-msLookupByRememberToken ms token t =
+msLookupByRememberToken ms uid token t =
   atomicModifyIORef' (unMemoryUserStore ms) $ \s0 ->
      let
        um = userMap s0
        rm = rememberMap s0
-     in case HashMap.lookup bs rm of
+     in case HashMap.lookup uid rm of
        Nothing -> (s0, Nothing)
-       Just (uid, t0)
-         | t0 < t -> (s0 { rememberMap = HashMap.delete bs rm} , Nothing)
+       Just toks@(lookup bs -> Just t0)
+         | t0 < t -> (s0 { rememberMap = dropRememberToken uid bs toks rm} , Nothing)
          | otherwise -> case HashMap.lookup uid um of
-             Nothing -> (s0 { rememberMap = HashMap.delete bs rm} , Nothing)
+             Nothing -> (s0 { rememberMap = HashMap.delete uid rm} , Nothing)
              Just u -> (s0, Just u)
   where
     RememberToken bs = token
 
+dropRememberToken uid t toks rm = case filter ((== t) . fst) toks of
+  [] -> HashMap.delete uid rm
+  toks -> HashMap.insert uid toks rm
+
 msDeleteRememberToken
   :: MemoryUserStore
+  -> UserId
   -> RememberToken
   -> IO ()
-msDeleteRememberToken ms token =
+msDeleteRememberToken ms uid token =
   atomicModifyIORef' (unMemoryUserStore ms) $ \s0 ->
      let
        rm = rememberMap s0
-     in (s0 { rememberMap = HashMap.delete bs rm }, ())
+     in case HashMap.lookup uid rm of
+       Nothing -> (s0, ())
+       Just toks ->
+         (s0 { rememberMap = dropRememberToken uid bs toks rm }, ())
   where
     RememberToken bs = token
 
@@ -169,7 +179,7 @@ initUserStore usrs = mkUserStore <$> newIORef store
          , usLookupUserByUsername = msLookupByUsername ms
          , usLookupUserByEmail = msLookupByEmail ms
          , usStoreRememberToken = msStoreRememberToken ms
-         , usLookupByRememeberToken = msLookupByRememberToken ms
+         , usLookupByRememberToken = msLookupByRememberToken ms
          , usDeleteRememberToken = msDeleteRememberToken ms
          , usCreateUser = msSaveUser ms
          , usSaveUser = msSaveUser ms

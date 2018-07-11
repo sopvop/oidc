@@ -47,12 +47,14 @@ data UserStore = UserStore
     -> RememberToken
     -> UTCTime
     -> IO ()
-  , usLookupByRememeberToken
-    :: RememberToken
+  , usLookupByRememberToken
+    :: UserId
+    -> RememberToken
     -> UTCTime
     -> IO (Maybe UserAuth)
   , usDeleteRememberToken
-    :: RememberToken
+    :: UserId
+    -> RememberToken
     -> IO ()
 
   , usCreateUser
@@ -111,18 +113,20 @@ storeRememberToken uid tok t = withUserStore $ \us ->
 
 lookupByRememberToken
   :: HasUserStore m
-  => RememberToken
+  => UserId
+  -> RememberToken
   -> UTCTime
   -> m (Maybe UserAuth)
-lookupByRememberToken tok tout = withUserStore $ \us ->
-  liftIO $ usLookupByRememeberToken us tok tout
+lookupByRememberToken uid tok tout = withUserStore $ \us ->
+  liftIO $ usLookupByRememberToken us uid tok tout
 
 deleteRememberToken
   :: HasUserStore m
-  => RememberToken
+  => UserId
+  -> RememberToken
   -> m ()
-deleteRememberToken tok = withUserStore $ \us ->
-  liftIO $ usDeleteRememberToken us tok
+deleteRememberToken uid tok = withUserStore $ \us ->
+  liftIO $ usDeleteRememberToken us uid tok
 
 
 createUser
