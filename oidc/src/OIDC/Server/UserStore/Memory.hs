@@ -137,18 +137,24 @@ msLookupByRememberToken ms uid token t =
        um = userMap s0
        rm = rememberMap s0
      in case HashMap.lookup uid rm of
-       Nothing -> (s0, Nothing)
        Just toks@(lookup bs -> Just t0)
          | t0 < t -> (s0 { rememberMap = dropRememberToken uid bs toks rm} , Nothing)
          | otherwise -> case HashMap.lookup uid um of
              Nothing -> (s0 { rememberMap = HashMap.delete uid rm} , Nothing)
              Just u -> (s0, Just u)
+       _ -> (s0, Nothing)
   where
     RememberToken bs = token
 
-dropRememberToken uid t toks rm = case filter ((== t) . fst) toks of
+dropRememberToken
+  :: UserId
+  -> ShortByteString
+  -> [(ShortByteString, b)]
+  -> HashMap UserId [(ShortByteString, b)]
+  -> HashMap UserId [(ShortByteString, b)]
+dropRememberToken uid t toks rm = case filter ((/= t) . fst) toks of
   [] -> HashMap.delete uid rm
-  toks -> HashMap.insert uid toks rm
+  ts -> HashMap.insert uid ts rm
 
 msDeleteRememberToken
   :: MemoryUserStore
