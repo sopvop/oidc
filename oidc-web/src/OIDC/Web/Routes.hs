@@ -11,6 +11,8 @@ module OIDC.Web.Routes
   , LoginForm
   , LoginFormPost
   , LoginFormReq(..)
+  , PasswordChangeFormPost
+  , PasswordChangeFormReq(..)
   , UserIdClaim(..)
   ) where
 
@@ -31,10 +33,11 @@ import           Servant.Auth.Server.Remember (Remember)
 import           OIDC.Crypto.Jwt (userSub)
 import           OIDC.Types (UserId)
 
-type Routes = Protected :> XsrfCookie :> RegForm
-              :<|> Protected :> XsrfCookie :> RegFormPost
-              :<|> Protected :> XsrfCookie :> LoginForm
-              :<|> Protected :> XsrfCookie :> LoginFormPost
+type Routes =
+       Protected :> XsrfCookie :> RegForm
+  :<|> Protected :> XsrfCookie :> RegFormPost
+  :<|> Protected :> XsrfCookie :> LoginForm
+  :<|> Protected :> XsrfCookie :> LoginFormPost
 
 type Protected = Auth '[Cookie, Remember UserIdClaim] UserIdClaim
 
@@ -60,6 +63,12 @@ type LoginFormPost =
   :> ReqBody '[FormUrlEncoded] LoginFormReq
   :> Post '[Html] Html
 
+type PasswordChangeFormPost =
+  "accounts"
+  :> "password_change"
+  :> ReqBody '[FormUrlEncoded] PasswordChangeFormReq
+  :> Post '[Html] Html
+
 
 data RegFormReq = RegFormReq
   { csrf_token :: Text
@@ -79,6 +88,15 @@ data LoginFormReq = LoginFormReq
   } deriving(Generic)
 
 instance FromForm LoginFormReq where
+
+data PasswordChangeFormReq = PasswordChangeFormReq
+  { csrf_token    :: Text
+  , password      :: Text
+  , new_password  :: Text
+  , new_password2 :: Text
+  } deriving(Generic)
+
+instance FromForm PasswordChangeFormReq where
 
 data UserIdClaim = UserIdClaim
   { claimUser   :: UserId

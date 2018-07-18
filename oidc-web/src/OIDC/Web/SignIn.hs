@@ -30,7 +30,7 @@ authenticateUser
   -> m (Maybe (UserAuth, Maybe RememberToken))
 authenticateUser usernameOrEmail password remember = runMaybeT $ do
   user <- MaybeT $ case Email.parseEmailAddress usernameOrEmail of
-      Just addr -> lookupUserByEmail (Email.toEmailId addr)
+      Just addr -> lookupUserByEmail addr
       Nothing -> lookupUserByUsername (Username usernameOrEmail)
 
   unless (verifyPassword password $ userPassword user)

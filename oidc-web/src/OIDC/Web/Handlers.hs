@@ -9,7 +9,6 @@ module OIDC.Web.Handlers
 
 
 import           Control.Monad (unless)
-import           Control.Monad.IO.Class
 import           Control.Monad.Reader (Reader, ask, asks, local, runReader)
 import           Data.Maybe (catMaybes)
 import           Data.Semigroup ((<>))

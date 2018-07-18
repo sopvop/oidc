@@ -9,9 +9,9 @@ import           OIDC.Web.Monad
     (Environment (..), Web, initWeb, initWebCrypto, newKey)
 
 import           OIDC.Types (Password (..))
-import           OIDC.Types.Email (parseEmailAddress, toEmailId)
+import           OIDC.Types.Email (parseEmailAddress)
 import           OIDC.Types.UserAuth
-    (UserAuth (..), Username (..), userIdFromString)
+    (EmailStatus (..), UserAuth (..), Username (..), userIdFromString)
 import           Servant.Auth.Server (generateKey)
 
 
@@ -28,7 +28,7 @@ initEnv = do
 
           in UserAuth uid (Username "user1")
              (Password "$pbkdf2_sha256$100000$rAIFsBg2l4pTBcb.5laeau$GhMJ3jtsgprrRys2Q63EwM21.d4JbCbwKpZFNfnyage") -- test1password
-             (toEmailId email) email Nothing
+             email EmailVerified Nothing
         ]
   key <- newKey
   cry <- initWebCrypto key
@@ -39,6 +39,7 @@ main :: IO ()
 main = do
   env <- initEnv
   app <- application env
+  putStrLn "Running on http://dev.localhost.com:8080"
   Warp.runSettings settings app
   where
     settings =

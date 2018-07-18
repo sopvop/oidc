@@ -17,7 +17,8 @@ import           OIDC.Crypto.RNG (newRNG)
 import           OIDC.Server.UserStore
     (HasUserStore, StoreUserError (..), createUser, lookupUserByEmail,
     lookupUserByUsername)
-import           OIDC.Types (UserAuth (..), UserId, Username (..))
+import           OIDC.Types
+    (EmailStatus (..), UserAuth (..), UserId, Username (..))
 import qualified OIDC.Types.Email as Email
 import           OIDC.Types.UserAuth (newUserId)
 
@@ -49,8 +50,7 @@ registerNewUser username email password password2 = do
   emailCheck <- runExceptT $ do
     parsedEmail <- ExceptT . pure . note [RegEmailIsBad]
       $ Email.parseEmailAddress email
-    let emailId = Email.toEmailId parsedEmail
-    ExceptT $ isTaken RegEmailTaken <$> lookupUserByEmail emailId
+    ExceptT $ isTaken RegEmailTaken <$> lookupUserByEmail parsedEmail
     pure parsedEmail
 
   let
@@ -68,7 +68,7 @@ registerNewUser username email password password2 = do
       pass <- liftIO $ generatePbkdf2Sha256 rng password
       let
         auth = UserAuth uid username pass
-            (Email.toEmailId emailAddr) emailAddr Nothing
+            emailAddr EmailUnverified Nothing
       toResult uid <$> createUser auth
 
   where
