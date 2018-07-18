@@ -13,17 +13,13 @@ module OIDC.Server.Types
 
 import           Control.Exception (Exception)
 import           Control.Monad.Catch (MonadCatch, MonadThrow)
-import           Control.Monad.IO.Class (MonadIO, liftIO)
+import           Control.Monad.IO.Class (MonadIO)
 import           Control.Monad.Reader (MonadReader, ReaderT (..), asks, local)
-import           Crypto.JWT (JWK)
-import           Data.Time (NominalDiffTime, addUTCTime)
+import           Data.Time (NominalDiffTime)
 import           Katip (Katip (..), LogEnv, Namespace)
 import           Katip.Monadic (KatipContext (..), LogContexts)
 
-import           OIDC.Crypto.Jwk (PublicKeySet (..))
 import           OIDC.Crypto.RNG (RNG, newRNG)
-import           OIDC.Types
-    (ClientAuth, ClientId, EmailId, UserAuth, UserId, Username)
 
 import           OIDC.Server.ClientStore (ClientStore, HasClientStore (..))
 import           OIDC.Server.KeyStore (HasKeyStore (..), KeyStore)

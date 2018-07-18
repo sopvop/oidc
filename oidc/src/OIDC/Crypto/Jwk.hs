@@ -6,12 +6,12 @@ module OIDC.Crypto.Jwk
     , toPublicKeySet
     ) where
 
-import           Control.Lens    (set, view)
+import           Control.Lens (set, view)
 import           Crypto.JWT
-    (JWK, JWKSet (..), JWKStore, KeyMaterialGenParam (..), KeyUse (Sig),
+    (JWK, JWKSet (..), KeyMaterialGenParam (..), KeyUse (Sig),
     OKPCrv (Ed25519), asPublicKey, genJWK, jwkUse)
-import           Data.Aeson      (ToJSON (..), object, pairs, (.=))
-import           Data.Maybe      (mapMaybe)
+import           Data.Aeson (ToJSON (..), object, pairs, (.=))
+import           Data.Maybe (mapMaybe)
 
 import           OIDC.Crypto.RNG (RNG, runDRG)
 

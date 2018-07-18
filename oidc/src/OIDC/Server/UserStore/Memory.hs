@@ -14,12 +14,13 @@ import           Data.Time (UTCTime)
 
 import           OIDC.Server.UserStore
     (RememberToken (..), StoreUserError (..), UserStore (..))
-import           OIDC.Types (EmailId (..), UserAuth (..), UserId (..), Username)
+import           OIDC.Types
+    (EmailAddress (..), UserAuth (..), UserId (..), Username)
 
 data Store = Store
   { userMap     :: HashMap UserId UserAuth
   , usernameMap :: HashMap Username UserId
-  , emailMap    :: HashMap EmailId UserId
+  , emailMap    :: HashMap EmailAddress UserId
   , rememberMap :: HashMap UserId  [(ShortByteString, UTCTime)]
   }
 
@@ -46,7 +47,7 @@ msLookupByUsername ms uname =
 
 msLookupByEmail
   :: MemoryUserStore
-  -> EmailId
+  -> EmailAddress
   -> IO (Maybe UserAuth)
 msLookupByEmail ms email =
   go <$> readIORef (unMemoryUserStore ms)
@@ -68,7 +69,7 @@ addUserToStore !usr !store =
     um = HashMap.insert uid usr $ userMap store
     unm = HashMap.insert (userUsername usr) uid
           $ usernameMap store
-    em = HashMap.insert (userEmailId usr) uid
+    em = HashMap.insert (userEmail usr) uid
          $ emailMap store
 
 dropUserFromStore
@@ -80,7 +81,7 @@ dropUserFromStore uid store = fromMaybe store $ do
   pure $ store { userMap = HashMap.delete uid (userMap store)
                , usernameMap = HashMap.delete (userUsername usr)
                                $ usernameMap store
-               , emailMap = HashMap.delete (userEmailId usr)
+               , emailMap = HashMap.delete (userEmail usr)
                             $ emailMap store
                }
 
@@ -93,7 +94,7 @@ checkUser user s = do
     when emailTaken $ Left DuplicateEmail
   where
     usernameTaken = HashMap.member (userUsername user) (usernameMap s)
-    emailTaken = HashMap.member (userEmailId user) (emailMap s)
+    emailTaken = HashMap.member (userEmail user) (emailMap s)
 
 
 msSaveUser

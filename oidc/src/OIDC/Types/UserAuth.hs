@@ -5,20 +5,21 @@ module OIDC.Types.UserAuth
   , newUserId
   , userIdFromString
   , Username(..)
+  , EmailStatus(..)
   ) where
 
-import           Data.Aeson           (FromJSON, ToJSON)
-import           Data.Coerce          (coerce)
-import           Data.Hashable        (Hashable)
-import           Data.Text            (Text)
-import           Data.Time            (UTCTime)
-import           Data.UUID            (UUID)
-import           Data.UUID            as UUID
-import           Data.UUID.V4         as UUID
-import           Web.HttpApiData      (FromHttpApiData, ToHttpApiData)
+import           Data.Aeson (FromJSON, ToJSON)
+import           Data.Coerce (coerce)
+import           Data.Hashable (Hashable)
+import           Data.Text (Text)
+import           Data.Time (UTCTime)
+import           Data.UUID (UUID)
+import           Data.UUID as UUID
+import           Data.UUID.V4 as UUID
+import           Web.HttpApiData (FromHttpApiData, ToHttpApiData)
 
 import           OIDC.Crypto.Password (Password (..))
-import           OIDC.Types.Email     (EmailAddress, EmailId)
+import           OIDC.Types.Email (EmailAddress)
 
 
 newtype UserId = UserId { unUserId :: UUID }
@@ -38,13 +39,18 @@ newtype Username = Username { unUserName :: Text }
              , FromHttpApiData, ToHttpApiData
              , Hashable )
 
+data EmailStatus
+  = EmailUnverified
+  | EmailVerified
+  deriving(Eq,Ord,Show)
+
 data UserAuth = UserAuth
-    { userId        :: UserId
-    , userUsername  :: Username
-    , userPassword  :: Password
-    , userEmailId   :: EmailId
-    , userEmail     :: EmailAddress
-    , userLockedOut :: Maybe UTCTime
+    { userId            :: UserId
+    , userUsername      :: Username
+    , userPassword      :: Password
+    , userEmail         :: EmailAddress
+    , userEmailVerified :: EmailStatus
+    , userLockedOut     :: Maybe UTCTime
     } deriving (Eq, Ord, Show)
 
 

@@ -80,7 +80,6 @@ test-suite tests
     Tests.OIDC.Crypto.Message
     Tests.OIDC.Server.KeyStore.Memory
     Tests.OIDC.Server.UserStore.Memory
-    Tests.OIDC.Types.Email
     Tests.Utils
   build-depends: base >= 4.10 && < 4.11
                , bytestring

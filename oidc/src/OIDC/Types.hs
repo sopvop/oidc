@@ -8,8 +8,8 @@ module OIDC.Types
     , Username(..)
     , Password(..)
     , CleartextPassword(..)
-    , EmailId(..)
     , EmailAddress (..)
+    , EmailStatus(..)
 
     , ClientId(..)
     , ClientAuth(..)
@@ -40,8 +40,9 @@ import qualified Web.FormUrlEncoded as Form
 
 import           OIDC.Crypto.Password (CleartextPassword (..), Password (..))
 import           OIDC.Types.Client (ClientAuth (..), ClientId (..))
-import           OIDC.Types.Email (EmailAddress (..), EmailId (..))
-import           OIDC.Types.UserAuth (UserAuth (..), UserId (..), Username (..))
+import           OIDC.Types.Email (EmailAddress (..))
+import           OIDC.Types.UserAuth
+    (EmailStatus (..), UserAuth (..), UserId (..), Username (..))
 
 data GrantType
     = AuthorizationCodeGrant

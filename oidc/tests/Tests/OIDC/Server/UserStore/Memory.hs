@@ -5,7 +5,7 @@ module Tests.OIDC.Server.UserStore.Memory
 
 import           Control.Monad ((<=<))
 import           Data.ByteString (ByteString)
-import           Data.Maybe (isNothing)
+import           Data.Maybe (fromJust, isNothing)
 import           Data.Semigroup ((<>))
 import           Data.Text (Text)
 import           Data.Time (UTCTime (..), addUTCTime, fromGregorian)
@@ -18,8 +18,9 @@ import           OIDC.Server.UserStore
     (RememberToken (..), StoreUserError (..), UserStore (..))
 import           OIDC.Server.UserStore.Memory (initUserStore)
 import           OIDC.Types
-    (EmailId (..), Password (..), UserAuth (..), UserId (..), Username (..))
-import           OIDC.Types.Email (parseEmailAddress, toEmailId)
+    (EmailStatus (..), Password (..), UserAuth (..), UserId (..),
+    Username (..))
+import           OIDC.Types.Email (parseEmailAddress)
 
 import           Tests.Utils (assertLeftEqM', assertRightM')
 
@@ -59,12 +60,12 @@ testStore = testCase "Store" $ do
   _ <- assertLeftEqM' "Check username duplication" DuplicateUsername
          $ usSaveUser store usr2
 
-  let usr3 = usr1 { userEmailId = EmailId "otheruser@foo.bar" }
+  let usr3 = usr1 { userEmail = fromJust $ parseEmailAddress "otheruser@foo.bar" }
   _ <- assertLeftEqM' "Check email duplication" DuplicateEmail
          $ usSaveUser store usr3
 
   let usr4 = usr1 { userUsername = Username "new"
-                  , userEmailId = EmailId "new@example.com" }
+                  , userEmail = fromJust $ parseEmailAddress "new@example.com" }
   assertRightM' "Changes email and username"
        $ usSaveUser store usr4
 
@@ -75,7 +76,7 @@ testStore = testCase "Store" $ do
      . isNothing =<< usLookupUserByUsername store (userUsername usr1)
 
   assertBool "Old email no longer lookus up"
-     . isNothing =<< usLookupUserByEmail store (userEmailId usr1)
+     . isNothing =<< usLookupUserByEmail store (userEmail usr1)
 
 
 
@@ -91,17 +92,17 @@ testRememberToken = testCase "RememberToken" $ do
 
   usStoreRememberToken store usrid1 tok1 t0
 
-  got1 <- usLookupByRememeberToken store tok1 (addUTCTime (-1000) t0)
+  got1 <- usLookupByRememberToken store usrid1 tok1 (addUTCTime (-1000) t0)
   assertEqual "Token was saved" (Just usr1) got1
 
-  got2 <- usLookupByRememeberToken store tok1 (addUTCTime 1000 t0)
+  got2 <- usLookupByRememberToken store usrid1 tok1 (addUTCTime 1000 t0)
   assertEqual "Token timed out" Nothing got2
 
-  got3 <- usLookupByRememeberToken store tok1 (addUTCTime (-1000) t0)
+  got3 <- usLookupByRememberToken store usrid1 tok1 (addUTCTime (-1000) t0)
   assertEqual "Timed out token removed from store" Nothing got3
 
   usStoreRememberToken store missingUid tok1 t0
-  got4 <- usLookupByRememeberToken store tok1 (addUTCTime (-1000) t0)
+  got4 <- usLookupByRememberToken store usrid1 tok1 (addUTCTime (-1000) t0)
   assertEqual "Token not saved for missing user" Nothing got4
 
 
@@ -123,7 +124,7 @@ mkUsr (uid, nm, p, em) = do
                           "Can't parse email " <> show em
                Just r -> pure r
     pure $ UserAuth uid (Username nm) (Password p)
-             (toEmailId email) email Nothing
+           email EmailUnverified Nothing
 
 mkUser1 :: IO UserAuth
 mkUser1 = mkUsr (uid1, "user1", "pass", "someuser1@example.com")
@@ -137,15 +138,3 @@ mkUsers = sequence
 mkStore :: IO UserStore
 mkStore = initUserStore =<< mkUsers
 
-{-
-data UserAuth = UserAuth
-    { userId        :: UserId
-    , userUsername  :: Username
-    , userPassword  :: Password
-    , userEmailId   :: EmailId
-    , userEmail     :: EmailAddress
-    , userLockedOut :: Maybe UTCTime
-    } deriving (Eq, Ord, Show)
-
-
--}

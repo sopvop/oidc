@@ -19,7 +19,7 @@ import           Control.Monad.Trans.Reader (ReaderT, ask)
 import           Data.ByteString.Short (ShortByteString)
 import           Data.Time (UTCTime)
 
-import           OIDC.Types (EmailId, UserAuth, UserId, Username)
+import           OIDC.Types (EmailAddress, UserAuth, UserId, Username)
 
 -- | Backend error while creating user
 data StoreUserError = DuplicateUsername
@@ -39,7 +39,7 @@ data UserStore = UserStore
     :: Username
     -> IO (Maybe UserAuth)
   , usLookupUserByEmail
-    :: EmailId
+    :: EmailAddress
     -> IO (Maybe UserAuth)
 
   , usStoreRememberToken
@@ -96,7 +96,7 @@ lookupUserByUsername name = withUserStore $ \us ->
 
 lookupUserByEmail
   :: HasUserStore m
-  => EmailId
+  => EmailAddress
   -> m (Maybe UserAuth)
 lookupUserByEmail email = withUserStore $ \us ->
   liftIO $ usLookupUserByEmail us email

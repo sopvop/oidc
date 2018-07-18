@@ -9,14 +9,11 @@ module OIDC.Server
     , keysEndpoint
     ) where
 
-import           Control.Applicative (Alternative, empty, (<|>))
+import           Control.Applicative (empty, (<|>))
 import           Control.Error
     (ExceptT (..), hoistEither, hush, note, noteT, runExceptT, throwE)
-import           Control.Exception (Exception)
-import           Control.Lens (both, to)
 import           Control.Monad (unless, (<=<))
-import           Control.Monad.Catch (throwM)
-import           Control.Monad.IO.Class (MonadIO, liftIO)
+import           Control.Monad.IO.Class (liftIO)
 import           Control.Monad.Reader (ask)
 import           Control.Monad.Trans.Class (lift)
 import           Control.Monad.Trans.Maybe (MaybeT (..), runMaybeT)
@@ -30,8 +27,8 @@ import           Data.Maybe (fromMaybe)
 import           Data.Semigroup ((<>))
 import           Data.Text (Text)
 import qualified Data.Text.Encoding as Text
-import           Data.Time (UTCTime, addUTCTime, getCurrentTime)
-import           Katip (Severity (..), logF, logMsg, ls, showLS, sl)
+import           Data.Time (addUTCTime, getCurrentTime)
+import           Katip (Severity (..), logF, logMsg, showLS, sl)
 import           Network.HTTP.Media (MediaType, mapContent, (//))
 import           Network.HTTP.Types
     (Header, Status, badRequest400, hAuthorization, hCacheControl,
@@ -39,21 +36,18 @@ import           Network.HTTP.Types
     requestEntityTooLarge413, unsupportedMediaType415)
 import           Network.Wai
     (Application, Request, RequestBodyLength (ChunkedBody, KnownLength),
-    Response, ResponseReceived, rawQueryString, requestBody, requestBodyLength,
-    requestHeaders, requestMethod, responseLBS)
+    Response, requestBody, requestBodyLength, requestHeaders, requestMethod,
+    responseLBS)
 import           Network.Wai.Middleware.HttpAuth (extractBasicAuth)
 import           Web.FormUrlEncoded
     (Form, FromForm, fromForm, lookupMaybe, lookupUnique, urlDecodeForm)
 
-import           OIDC.Crypto.Jwk (PublicKeySet (..))
 import           OIDC.Crypto.Jwt (encodeAccessToken, newAccessToken)
-import           OIDC.Crypto.Message (encryptMessage)
 import           OIDC.Crypto.Password (verifyPassword)
 import           OIDC.Types
 
-import           OIDC.Server.ClientStore (lookupClientById)
-import           OIDC.Server.KeyStore
-    (KeyStore (..), askAccessTokenSigningKey, askVerificationKeys)
+import           OIDC.Server.ClientStore (HasClientStore, lookupClientById)
+import           OIDC.Server.KeyStore (KeyStore (..), askVerificationKeys)
 import           OIDC.Server.Types
 import           OIDC.Server.UserStore (lookupUserByUsername)
 
@@ -226,7 +220,7 @@ onNothingM act elseAct = maybe elseAct pure =<< act
 
 readClientCreds :: Request -> Form -> Maybe ClientCreds
 readClientCreds req form = do
-    (cid, pass) <- basic <|> hush fromForm
+    (cid, pass) <- basic <|> hush fromFormData
     pure $ ClientCreds (coerce cid) (coerce pass)
   where
     basic = do
@@ -236,10 +230,13 @@ readClientCreds req form = do
                  then Nothing
                  else Just (Text.decodeLatin1 b)
       pure (Text.decodeLatin1 a, pass)
-    fromForm =
+    fromFormData =
         (,) <$> lookupUnique "client_id" form
             <*> lookupMaybe "client_secret" form
 
+authenticateClient
+  :: HasClientStore m =>
+     Request -> Form -> ExceptT (Ann TokenRequestError) m ClientAuth
 authenticateClient req form = do
   ClientCreds cid _ <-
     readClientCreds req form
@@ -251,9 +248,10 @@ authenticateClient req form = do
     throwAnn TokenUnauthorizedClient "Unknown client"
   pure client
 
-authenticateClientWithSecret :: Request
-                             -> Form
-                             -> ExceptT (Ann TokenRequestError) ServerM ClientAuth
+authenticateClientWithSecret
+  :: Request
+  -> Form
+  -> ExceptT (Ann TokenRequestError) ServerM ClientAuth
 authenticateClientWithSecret req form = do
   ClientCreds cid secret <-
     readClientCreds req form
