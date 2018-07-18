@@ -68,6 +68,7 @@ executable oidc-check
   main-is: Check.hs
   build-depends: base
                , oidc-web
+               , time
                , oidc
                , warp
                , servant-auth-server

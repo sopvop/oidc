@@ -3,6 +3,7 @@ module Main (main) where
 
 import           Data.Maybe (fromJust)
 
+import           Data.Time (getCurrentTime)
 import           OIDC.Server.UserStore.Memory (initUserStore)
 import           OIDC.Web (application)
 import           OIDC.Web.Monad
@@ -19,6 +20,7 @@ import qualified Network.Wai.Handler.Warp as Warp
 
 initEnv :: IO Web
 initEnv = do
+  t <- getCurrentTime
   us <- initUserStore
         [
           let
@@ -28,7 +30,7 @@ initEnv = do
 
           in UserAuth uid (Username "user1")
              (Password "$pbkdf2_sha256$100000$rAIFsBg2l4pTBcb.5laeau$GhMJ3jtsgprrRys2Q63EwM21.d4JbCbwKpZFNfnyage") -- test1password
-             email EmailVerified Nothing
+             email EmailVerified Nothing "" "user1" Nothing t
         ]
   key <- newKey
   cry <- initWebCrypto key

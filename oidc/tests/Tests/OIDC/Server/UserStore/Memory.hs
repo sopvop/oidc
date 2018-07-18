@@ -119,12 +119,13 @@ missingUid = UserId (UUID.fromWords 1 0 0 0)
 
 mkUsr :: (UserId, Text, ByteString, Text) -> IO UserAuth
 mkUsr (uid, nm, p, em) = do
-    email <- case parseEmailAddress em of
-               Nothing -> assertFailure $
-                          "Can't parse email " <> show em
-               Just r -> pure r
-    pure $ UserAuth uid (Username nm) (Password p)
+  email <- case parseEmailAddress em of
+             Nothing -> assertFailure $
+                        "Can't parse email " <> show em
+             Just r -> pure r
+  pure $ UserAuth uid (Username nm) (Password p)
            email EmailUnverified Nothing
+           "" nm  Nothing (UTCTime (fromGregorian 2018 01 01) 0)
 
 mkUser1 :: IO UserAuth
 mkUser1 = mkUsr (uid1, "user1", "pass", "someuser1@example.com")

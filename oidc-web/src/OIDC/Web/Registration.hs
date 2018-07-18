@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 module OIDC.Web.Registration
   ( registerNewUser
   , RegError(..)
@@ -11,6 +12,7 @@ import           Data.Char (isAlpha, isAscii, isLower, isNumber)
 import           Data.Either.Validation
 import           Data.Text (Text)
 import qualified Data.Text as Text
+import           Data.Time (getCurrentTime)
 import           OIDC.Crypto.Password
     (CleartextPassword (..), generatePbkdf2Sha256)
 import           OIDC.Crypto.RNG (newRNG)
@@ -63,13 +65,16 @@ registerNewUser username email password password2 = do
   case validationToEither v of
     Left e -> pure $ Left e
     Right emailAddr -> do
-      uid <- liftIO newUserId
-      rng <- liftIO newRNG
-      pass <- liftIO $ generatePbkdf2Sha256 rng password
-      let
-        auth = UserAuth uid username pass
+      auth <- liftIO $ do
+        uid <- newUserId
+        rng <-  newRNG
+        pass <-  generatePbkdf2Sha256 rng password
+        t <-  getCurrentTime
+
+        pure $ UserAuth uid username pass
             emailAddr EmailUnverified Nothing
-      toResult uid <$> createUser auth
+            "" (unUserName username) Nothing t
+      toResult (userId auth) <$> createUser auth
 
   where
     toResult uid r = case r of

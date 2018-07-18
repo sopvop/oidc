@@ -45,12 +45,14 @@ data EmailStatus
   deriving(Eq,Ord,Show)
 
 data UserAuth = UserAuth
-    { userId            :: UserId
-    , userUsername      :: Username
-    , userPassword      :: Password
-    , userEmail         :: EmailAddress
-    , userEmailVerified :: EmailStatus
-    , userLockedOut     :: Maybe UTCTime
-    } deriving (Eq, Ord, Show)
-
-
+  { userId            :: UserId
+  , userUsername      :: Username
+  , userPassword      :: Password
+  , userEmail         :: EmailAddress
+  , userEmailVerified :: EmailStatus
+  , userLockedOut     :: Maybe UTCTime
+  , userName          :: Text -- TODO: newtype wrap?
+  , userNickname      :: Text
+  , userAvatar        :: Maybe Text --TODO: Url it
+  , userUpdatedAt     :: UTCTime
+  } deriving (Eq, Ord, Show)
