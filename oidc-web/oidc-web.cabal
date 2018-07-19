@@ -30,7 +30,7 @@ library
     Servant.Auth.Server.Xsrf
   -- other-modules:
   -- other-extensions:
-  build-depends: base                     >= 4.10 && <4.11
+  build-depends: base                      >= 4.10 && < 4.12
                , oidc
                , lens
                , mtl                      ^>= 2.2

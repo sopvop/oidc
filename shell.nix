@@ -4,6 +4,7 @@ let
   oidcPkgs = self: super: {
      haskellPackages = super.haskellPackages.extend (pself: psuper: {
          oidc = psuper.callCabal2nix "oidc" ./oidc {};
+         oidc-web = psuper.callCabal2nix "oidc-web" ./oidc-web {};
      });
   };
 
