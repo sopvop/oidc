@@ -18,7 +18,7 @@ let
   nodeDependencies = nodePackages.shell.nodeDependencies;
 in
   pkgs.haskellPackages.shellFor {
-    packages = p: [ p.oidc ];
+    packages = p: [ p.oidc p.oidc-web ];
     buildInputs = [ pkgs.sassc
                     pkgs.nodePackages.node2nix
                   ];
