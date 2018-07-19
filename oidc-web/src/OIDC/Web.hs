@@ -25,7 +25,7 @@ import           Servant.Auth.Server.Xsrf (XsrfSettings (..))
 import           Servant.Server
     (Application, Context (..), Handler (..), ServantErr (..),
     hoistServerWithContext, serveWithContext)
-import           Servant.Utils.StaticFiles (serveDirectoryWebApp)
+import           Servant.Server.StaticFiles (serveDirectoryWebApp)
 import           Web.Cookie (SetCookie (setCookieName))
 
 import           OIDC.Crypto.Message (UrlEncoded)
